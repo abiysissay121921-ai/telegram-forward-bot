@@ -20,16 +20,17 @@ source_channels = [
     "Apostolic_Answers_chat",
 ]
 
-# Target channel (YOUR NEW CHANNEL)
+# Target channel
 target_channel = "Newswithabiy"  # Just the username, no @
 your_link = "https://t.me/Newswithabiy"
 
-print(f"🤖 Bot Token: ✓")
+print(f"🤖 Bot Token: {'✓' if BOT_TOKEN else '✗'}")
 print(f"📡 Monitoring channels: {source_channels}")
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your channel link: {your_link}")
 
-# Create client with bot token
+# IMPORTANT: For bot token, we don't need API ID/Hash
+# Use empty values and start with bot token
 client = TelegramClient("forward_bot", api_id=0, api_hash="").start(bot_token=BOT_TOKEN)
 
 @client.on(events.NewMessage(chats=source_channels))
@@ -48,11 +49,9 @@ async def handler(event):
         
         # Forward the message
         if event.message.media:
-            # Message has photo, video, or file
             await client.send_file(target_channel, event.message.media, caption=new_text)
-            print("📤 Forwarded with media (photo/video/file)")
+            print("📤 Forwarded with media")
         else:
-            # Text only message
             await client.send_message(target_channel, new_text)
             print(f"📤 Forwarded text: {new_text[:50]}...")
             
@@ -62,10 +61,10 @@ async def handler(event):
         print(f"❌ Error: {e}")
 
 async def main():
-    print("\n🔌 Connecting to Telegram...")
+    print("\n🔌 Connecting to Telegram with bot token...")
     await client.start()
     print("✅ Connected successfully!")
-    print(f"👀 Monitoring these channels: {source_channels}")
+    print(f"👀 Monitoring: {source_channels}")
     print(f"🎯 Forwarding to: @{target_channel}")
     print("🤖 Bot is running and waiting for messages...")
     print("\n💡 Send a test message to any monitored channel to see it work!\n")
