@@ -21,7 +21,7 @@ source_channels = [
 ]
 
 # Target channel
-target_channel = "Newswithabiy"  # Just the username, no @
+target_channel = "Newswithabiy"
 your_link = "https://t.me/Newswithabiy"
 
 print(f"🤖 Bot Token: {'✓' if BOT_TOKEN else '✗'}")
@@ -29,45 +29,58 @@ print(f"📡 Monitoring channels: {source_channels}")
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your channel link: {your_link}")
 
-# IMPORTANT: For bot token, we don't need API ID/Hash
-# Use empty values and start with bot token
-client = TelegramClient("forward_bot", api_id=0, api_hash="").start(bot_token=BOT_TOKEN)
+# Correct way to use bot token with Telethon
+# We need valid API credentials, but we'll use the bot token to connect
+# Get these from https://my.telegram.org
+API_ID = 37303512  # Your API ID from earlier
+API_HASH = "dff48dff61546b05d1d507a6c508ee8"  # Your API Hash
 
-@client.on(events.NewMessage(chats=source_channels))
-async def handler(event):
-    try:
-        print("\n" + "=" * 50)
-        print("🔔 NEW MESSAGE DETECTED!")
-        print("=" * 50)
-        
-        # Get the message text
-        text = event.raw_text or ""
-        print(f"Original message: {text[:100]}...")
-        
-        # Add your signature and link
-        new_text = f"{text}\n\n{your_link}\nሰላም ለእናንተ!"
-        
-        # Forward the message
-        if event.message.media:
-            await client.send_file(target_channel, event.message.media, caption=new_text)
-            print("📤 Forwarded with media")
-        else:
-            await client.send_message(target_channel, new_text)
-            print(f"📤 Forwarded text: {new_text[:50]}...")
-            
-        print("✅ Successfully forwarded to @Newswithabiy!")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
+print(f"🔑 Using API ID: {API_ID}")
+
+# Create client with API credentials
+client = TelegramClient("forward_bot", API_ID, API_HASH)
 
 async def main():
     print("\n🔌 Connecting to Telegram with bot token...")
-    await client.start()
+    
+    # Start the client with bot token
+    await client.start(bot_token=BOT_TOKEN)
+    
     print("✅ Connected successfully!")
     print(f"👀 Monitoring: {source_channels}")
     print(f"🎯 Forwarding to: @{target_channel}")
     print("🤖 Bot is running and waiting for messages...")
     print("\n💡 Send a test message to any monitored channel to see it work!\n")
+    
+    # Set up the event handler
+    @client.on(events.NewMessage(chats=source_channels))
+    async def handler(event):
+        try:
+            print("\n" + "=" * 50)
+            print("🔔 NEW MESSAGE DETECTED!")
+            print("=" * 50)
+            
+            # Get the message text
+            text = event.raw_text or ""
+            print(f"Original message: {text[:100]}...")
+            
+            # Add your signature and link
+            new_text = f"{text}\n\n{your_link}\nሰላም ለእናንተ!"
+            
+            # Forward the message
+            if event.message.media:
+                await client.send_file(target_channel, event.message.media, caption=new_text)
+                print("📤 Forwarded with media")
+            else:
+                await client.send_message(target_channel, new_text)
+                print(f"📤 Forwarded text: {new_text[:50]}...")
+                
+            print("✅ Successfully forwarded to @Newswithabiy!")
+            
+        except Exception as e:
+            print(f"❌ Error: {e}")
+    
+    # Keep the bot running
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
