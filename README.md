@@ -1,19 +1,19 @@
 from telethon import TelegramClient, events
 import hashlib
 
-api_id = 123456
-api_hash = "YOUR_API_HASH"
+api_id = 37303512
+api_hash = "dff48ddff61546b05d1d507a6c508ee8"
 
 source_channels = [
-    "channel1",
-    "channel2",
+    "https://t.me/ayuzehabeshanews",
+    "https://t.me/Apostolic_Answers_chat",
     "channel3",
     "channel4",
     "channel5"
 ]
 
-target_channel = "yourchannelusername"
-your_link = "https://t.me/yourchannelusername"
+target_channel = "@AbiyOfficial_bot"
+your_link = "https://t.me/@AbiyOfficial_bot"
 
 posted_messages = set()
 
