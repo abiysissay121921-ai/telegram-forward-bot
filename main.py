@@ -13,18 +13,16 @@ for file in os.listdir('.'):
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# ALL 7 SOURCE CHANNELS
 source_channels = [
-    "ayuzehabeshanews",        # https://t.me/ayuzehabeshanews
-    "Addis_News",              # https://t.me/Addis_News
-    "NatnaelMekonnen21",       # https://t.me/NatnaelMekonnen21
-    "tikvahethiopia",          # https://t.me/tikvahethiopia
-    "eliasmeseret",            # https://t.me/eliasmeseret
-    "TikvahUniversity",        # https://t.me/TikvahUniversity
-    "abiyselol",               # https://t.me/abiyselol
+    "ayuzehabeshanews",
+    "Addis_News",
+    "NatnaelMekonnen21",
+    "tikvahethiopia",
+    "eliasmeseret",
+    "TikvahUniversity",
+    "abiyselol",
 ]
 
-# UPDATED TARGET CHANNEL
 target_channel = "NewsWith_Abiy"
 your_link = "https://t.me/NewsWith_Abiy"
 
@@ -34,8 +32,8 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your channel link: {your_link}")
 
-# Session file name
-session_file = "my_forward_bot_session.session"
+# NEW SESSION FILE NAME
+session_file = "bot_working_final.session"
 
 if os.path.exists(session_file):
     size = os.path.getsize(session_file)
