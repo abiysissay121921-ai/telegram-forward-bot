@@ -9,7 +9,6 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# SOURCE CHANNELS
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -20,7 +19,6 @@ source_channels = [
     "abiyselol",
 ]
 
-# TARGET CHANNEL
 target_channel = "NewsWith_Abiy"
 your_link = "https://t.me/NewsWith_Abiy"
 
@@ -30,8 +28,7 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your link: {your_link}")
 
-# SESSION FILE NAME
-SESSION_FILE = "bot_session_final.session"
+SESSION_FILE = "bot_session_final (1).session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
