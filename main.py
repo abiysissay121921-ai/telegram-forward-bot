@@ -32,7 +32,8 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your channel link: {your_link}")
 
-session_file = "bot_working_final.session"
+# NEW SESSION FILE NAME
+session_file = "bot_v2_final.session"
 
 if os.path.exists(session_file):
     size = os.path.getsize(session_file)
