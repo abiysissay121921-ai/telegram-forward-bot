@@ -13,7 +13,6 @@ for file in os.listdir('.'):
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# NEW SOURCE CHANNELS (UPDATED)
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -31,17 +30,14 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# USING THE NEW SESSION FILE
-session_file = "bot_session_new.session"
+# NEW SESSION FILE NAME
+session_file = "my_forward_bot_session.session"
 
 if os.path.exists(session_file):
     size = os.path.getsize(session_file)
     print(f"✅ Session file found! Name: {session_file}, Size: {size} bytes")
 else:
     print(f"❌ Session file NOT found: {session_file}")
-    print("Files available:")
-    for f in os.listdir('.'):
-        print(f"   - {f}")
     exit(1)
 
 client = TelegramClient(session_file, API_ID, API_HASH)
