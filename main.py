@@ -27,10 +27,13 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "my_final_bot.session"
+SESSION_FILE = "bot.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
+    print("Files in directory:")
+    for f in os.listdir('.'):
+        print(f"   - {f}")
     exit(1)
 
 size = os.path.getsize(SESSION_FILE)
