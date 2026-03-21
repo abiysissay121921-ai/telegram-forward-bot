@@ -13,7 +13,7 @@ for file in os.listdir('.'):
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# ALL 7 SOURCE CHANNELS
+# ALL 7 SOURCE CHANNELS (UPDATED)
 source_channels = [
     "ayuzehabeshanews",        # https://t.me/ayuzehabeshanews
     "Addis_News",              # https://t.me/Addis_News
@@ -21,7 +21,7 @@ source_channels = [
     "tikvahethiopia",          # https://t.me/tikvahethiopia
     "eliasmeseret",            # https://t.me/eliasmeseret
     "TikvahUniversity",        # https://t.me/TikvahUniversity
-    "Apostolic_Answers_chat",  # https://t.me/Apostolic_Answers_chat
+    "abiyselol",               # https://t.me/abiyselol (NEW)
 ]
 
 target_channel = "Newswithabiy"
