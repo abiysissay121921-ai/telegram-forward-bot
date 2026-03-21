@@ -32,7 +32,6 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your channel link: {your_link}")
 
-# NEW SESSION FILE NAME
 session_file = "bot_working_final.session"
 
 if os.path.exists(session_file):
@@ -51,7 +50,9 @@ async def handler(event):
         if chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
-            new_text = f"{text}\n\n{your_link}\nሰላም ለእናንተ!"
+            
+            # LINK REPEATED THREE TIMES
+            new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
                 await client.send_file(target_channel, event.message.media, caption=new_text)
