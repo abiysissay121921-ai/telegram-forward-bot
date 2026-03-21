@@ -9,7 +9,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# SOURCE CHANNELS
+# ONLY CHANNELS - NO GROUPS
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -20,7 +20,6 @@ source_channels = [
     "abiyselol",
 ]
 
-# TARGET CHANNEL
 target_channel = "NewsWith_Abiy"
 your_link = "https://t.me/NewsWith_Abiy"
 
@@ -28,16 +27,11 @@ print(f"\n📡 Monitoring {len(source_channels)} channels:")
 for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
-print(f"🔗 Your link: {your_link}")
 
-# SESSION FILE NAME - SIMPLE NAME WITH NO SPACES
 SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
-    print("Files in directory:")
-    for f in os.listdir('.'):
-        print(f"   - {f}")
     exit(1)
 
 print(f"\n✅ Session file found: {SESSION_FILE}")
@@ -48,11 +42,10 @@ client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 async def handler(event):
     try:
         chat = await event.get_chat()
+        # Only process if it's a channel with a username in our list
         if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
-            
-            # Add link THREE TIMES + signature
             new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
@@ -62,6 +55,9 @@ async def handler(event):
                 await client.send_message(target_channel, new_text)
                 print(f"📤 Forwarded: {new_text[:50]}...")
             print("✅ Done!")
+        else:
+            # Ignore messages from groups or other chats
+            pass
     except Exception as e:
         print(f"❌ Error: {e}")
 
