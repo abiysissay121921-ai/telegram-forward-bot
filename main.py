@@ -17,7 +17,7 @@ source_channels = [
     "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
-    "zeena24now",
+    "zena24noe",
 ]
 
 target_channel = "NewsWith_Abiy"
@@ -28,7 +28,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "mybot.session"
+SESSION_FILE = "bot_session.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -37,7 +37,12 @@ if not os.path.exists(SESSION_FILE):
         print(f"   - {f}")
     exit(1)
 
-print(f"\n✅ Session file found: {SESSION_FILE}")
+# Check file size
+size = os.path.getsize(SESSION_FILE)
+print(f"\n✅ Session file found: {SESSION_FILE} (Size: {size} bytes)")
+
+if size < 100:
+    print(f"⚠️ WARNING: Session file is too small ({size} bytes). It may be corrupted!")
 
 forwarded_messages = set()
 MAX_STORED = 1000
