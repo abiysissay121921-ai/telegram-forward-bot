@@ -14,17 +14,25 @@ for file in os.listdir('.'):
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
+# ALL SOURCE CHANNELS (6 channels)
 source_channels = [
-    "ayuzehabeshanews",
-    "Apostolic_Answers_chat",
+    "ayuzehabeshanews",     # https://t.me/ayuzehabeshanews
+    "Addis_News",           # https://t.me/Addis_News
+    "NatnaelMekonnen21",    # https://t.me/NatnaelMekonnen21
+    "tikvahethiopia",       # https://t.me/tikvahethiopia
+    "eliasmeseret",         # https://t.me/eliasmeseret
+    "TikvahUniversity",     # https://t.me/TikvahUniversity
 ]
+
 target_channel = "Newswithabiy"
 your_link = "https://t.me/Newswithabiy"
 
-print(f"\n📡 Monitoring: {source_channels}")
-print(f"🎯 Forwarding to: {target_channel}")
+print(f"\n📡 Monitoring {len(source_channels)} channels:")
+for channel in source_channels:
+    print(f"   - @{channel}")
+print(f"🎯 Forwarding to: @{target_channel}")
 
-# USING THE NEW SESSION FILE NAME
+# Session file name
 session_file = "bot_session_new.session"
 
 # Check if session file exists
