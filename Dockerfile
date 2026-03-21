@@ -5,6 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 COPY main.py .
 
-RUN pip install telethon
+RUN pip install -r requirements.txt
 
 CMD ["python", "-u", "main.py"]
