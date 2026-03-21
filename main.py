@@ -32,8 +32,8 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your channel link: {your_link}")
 
-# NEW SESSION FILE NAME
-session_file = "bot_v2_final.session"
+# NEW SESSION FILE
+session_file = "bot_final_2026.session"
 
 if os.path.exists(session_file):
     size = os.path.getsize(session_file)
@@ -51,8 +51,6 @@ async def handler(event):
         if chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
-            
-            # LINK REPEATED THREE TIMES
             new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
