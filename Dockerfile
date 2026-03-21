@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 COPY main.py .
-COPY mysession.session .
+COPY session_1732123456.session .   # ← CHANGE THIS TO YOUR FILE NAME
 
 RUN pip install telethon
 
