@@ -9,7 +9,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# SOURCE CHANNELS (only channels)
+# SOURCE CHANNELS
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -30,8 +30,8 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your link: {your_link}")
 
-# CHANGE THIS TO YOUR NEW SESSION FILE NAME
-SESSION_FILE = "bot_1732123456.session"  # ← PUT YOUR FILE NAME HERE
+# USE THE EXACT SESSION FILE NAME
+SESSION_FILE = "bot_1774085071 (1).session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -42,19 +42,15 @@ if not os.path.exists(SESSION_FILE):
 
 print(f"\n✅ Session file found: {SESSION_FILE}")
 
-# Create client
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
 @client.on(events.NewMessage)
 async def handler(event):
     try:
         chat = await event.get_chat()
-        # Only process if it's a channel with a username in our list
         if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
-            
-            # Add link THREE TIMES + signature
             new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
