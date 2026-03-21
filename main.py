@@ -6,7 +6,6 @@ print("=" * 50)
 print("🚀 BOT STARTING")
 print("=" * 50)
 
-# List all files to see what's there
 print("\n📁 Files in directory:")
 for file in os.listdir('.'):
     print(f"   - {file}")
@@ -14,14 +13,14 @@ for file in os.listdir('.'):
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# ALL SOURCE CHANNELS (6 channels)
+# NEW SOURCE CHANNELS (UPDATED)
 source_channels = [
-    "ayuzehabeshanews",     # https://t.me/ayuzehabeshanews
-    "Addis_News",           # https://t.me/Addis_News
-    "NatnaelMekonnen21",    # https://t.me/NatnaelMekonnen21
-    "tikvahethiopia",       # https://t.me/tikvahethiopia
-    "eliasmeseret",         # https://t.me/eliasmeseret
-    "TikvahUniversity",     # https://t.me/TikvahUniversity
+    "ayuzehabeshanews",
+    "Addis_News",
+    "NatnaelMekonnen21",
+    "tikvahethiopia",
+    "eliasmeseret",
+    "TikvahUniversity",
 ]
 
 target_channel = "Newswithabiy"
@@ -32,18 +31,19 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# Session file name
+# USING THE NEW SESSION FILE
 session_file = "bot_session_new.session"
 
-# Check if session file exists
 if os.path.exists(session_file):
     size = os.path.getsize(session_file)
     print(f"✅ Session file found! Name: {session_file}, Size: {size} bytes")
 else:
     print(f"❌ Session file NOT found: {session_file}")
+    print("Files available:")
+    for f in os.listdir('.'):
+        print(f"   - {f}")
     exit(1)
 
-# Create client with the session file
 client = TelegramClient(session_file, API_ID, API_HASH)
 
 @client.on(events.NewMessage)
