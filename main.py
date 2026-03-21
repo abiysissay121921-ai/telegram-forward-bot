@@ -9,7 +9,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# SOURCE CHANNELS (only channels, no groups)
+# SOURCE CHANNELS (only channels)
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -30,20 +30,20 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your link: {your_link}")
 
-# SESSION FILE NAME
-session_file = "bot_2026_v3.session"
+# CHANGE THIS TO YOUR NEW SESSION FILE NAME
+SESSION_FILE = "bot_1732123456.session"  # ← PUT YOUR FILE NAME HERE
 
-if not os.path.exists(session_file):
-    print(f"❌ Session file not found: {session_file}")
+if not os.path.exists(SESSION_FILE):
+    print(f"\n❌ Session file not found: {SESSION_FILE}")
     print("Files in directory:")
     for f in os.listdir('.'):
         print(f"   - {f}")
     exit(1)
 
-print(f"✅ Session file found: {session_file}")
+print(f"\n✅ Session file found: {SESSION_FILE}")
 
 # Create client
-client = TelegramClient(session_file, API_ID, API_HASH)
+client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
 @client.on(events.NewMessage)
 async def handler(event):
