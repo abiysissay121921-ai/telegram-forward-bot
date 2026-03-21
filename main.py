@@ -18,6 +18,7 @@ source_channels = [
     "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
+    "zena24now",
 ]
 
 target_channel = "NewsWith_Abiy"
