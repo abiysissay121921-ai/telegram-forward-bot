@@ -1,7 +1,6 @@
 import asyncio
 from telethon import TelegramClient, events
 import os
-import hashlib
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -19,6 +18,7 @@ source_channels = [
     "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
+    "zena24now",
 ]
 
 # TARGET CHANNEL
@@ -31,8 +31,8 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your link: {your_link}")
 
-# CHANGE THIS TO YOUR NEW SESSION FILE NAME
-SESSION_FILE = "bot_1732123456.session"  # ← UPDATE THIS
+# YOUR SESSION FILE
+SESSION_FILE = "bot_1774107320.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
