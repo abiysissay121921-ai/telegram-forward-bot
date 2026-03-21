@@ -9,6 +9,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
+# SOURCE CHANNELS
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -19,6 +20,7 @@ source_channels = [
     "abiyselol",
 ]
 
+# TARGET CHANNEL
 target_channel = "NewsWith_Abiy"
 your_link = "https://t.me/NewsWith_Abiy"
 
@@ -28,7 +30,8 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 print(f"🔗 Your link: {your_link}")
 
-SESSION_FILE = "bot_session_final (1).session"
+# SESSION FILE NAME - SIMPLE NAME WITH NO SPACES
+SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -48,6 +51,8 @@ async def handler(event):
         if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
+            
+            # Add link THREE TIMES + signature
             new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
