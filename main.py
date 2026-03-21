@@ -24,13 +24,18 @@ your_link = "https://t.me/Newswithabiy"
 print(f"\n📡 Monitoring: {source_channels}")
 print(f"🎯 Forwarding to: {target_channel}")
 
-# Check if session file exists
-session_file = "user_session.session"
-if os.path.exists(session_file):
-    print(f"✅ Session file found! Size: {os.path.getsize(session_file)} bytes")
-else:
-    print(f"❌ Session file NOT found!")
+# USING THE NEW SESSION FILE NAME
+session_file = "bot_session_new.session"
 
+# Check if session file exists
+if os.path.exists(session_file):
+    size = os.path.getsize(session_file)
+    print(f"✅ Session file found! Name: {session_file}, Size: {size} bytes")
+else:
+    print(f"❌ Session file NOT found: {session_file}")
+    exit(1)
+
+# Create client with the session file
 client = TelegramClient(session_file, API_ID, API_HASH)
 
 @client.on(events.NewMessage)
@@ -56,8 +61,8 @@ async def main():
     try:
         print("\n🔌 Connecting to Telegram...")
         await client.start()
-        print("✅ Connected successfully!")
         me = await client.get_me()
+        print(f"✅ Connected successfully!")
         print(f"👤 Logged in as: @{me.username}")
         print("\n🤖 Bot is running and waiting for messages...\n")
         await client.run_until_disconnected()
