@@ -1,74 +1,52 @@
+!pip install telethon
+from telethon import TelegramClient
 import asyncio
-from telethon import TelegramClient, events
+import nest_asyncio
 import os
 
-print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT")
-print("=" * 50)
+nest_asyncio.apply()
 
-API_ID = 37303512
-API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
+api_id = 37303512
+api_hash = "dff48ddff61546b05d1d507a6c508ee8"
 
-source_channels = [
-    "ayuzehabeshanews",
-    "Addis_News",
-    "NatnaelMekonnen21",
-    "tikvahethiopia",
-    "eliasmeseret",
-    "TikvahUniversity",
-    "abiyselol",
-]
+SESSION_NAME = "bot"
 
-target_channel = "NewsWith_Abiy"
-your_link = "https://t.me/NewsWith_Abiy"
-
-print(f"\n📡 Monitoring {len(source_channels)} channels:")
-for channel in source_channels:
-    print(f"   - @{channel}")
-print(f"🎯 Forwarding to: @{target_channel}")
-
-SESSION_FILE = "bot.session"
-
-if not os.path.exists(SESSION_FILE):
-    print(f"\n❌ Session file not found: {SESSION_FILE}")
-    print("Files in directory:")
-    for f in os.listdir('.'):
-        print(f"   - {f}")
-    exit(1)
-
-size = os.path.getsize(SESSION_FILE)
-print(f"\n✅ Session file: {SESSION_FILE} ({size} bytes)")
-
-client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-forwarded_messages = set()
-
-@client.on(events.NewMessage)
-async def handler(event):
-    try:
-        chat = await event.get_chat()
-        if chat.username and chat.username in source_channels:
-            msg_id = f"{chat.id}_{event.id}"
-            if msg_id in forwarded_messages:
-                return
-            forwarded_messages.add(msg_id)
-            print(f"\n📨 From @{chat.username}")
-            text = event.raw_text or ""
-            new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-            if event.message.media:
-                await client.send_file(target_channel, event.message.media, caption=new_text[:1024])
-            else:
-                await client.send_message(target_channel, new_text[:4096])
-            print("✅ Forwarded")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-
-async def main():
-    print("\n🔌 Connecting...")
+async def create():
+    # Delete old if exists
+    if os.path.exists(f"{SESSION_NAME}.session"):
+        os.remove(f"{SESSION_NAME}.session")
+        print("🗑️ Deleted old session file")
+    
+    print("\n🔐 Creating new Telegram session...")
+    print("=" * 50)
+    
+    client = TelegramClient(SESSION_NAME, api_id, api_hash)
+    
+    # This will prompt for phone number and code
     await client.start()
+    
+    print("\n" + "=" * 50)
+    print("✅ SUCCESS!")
+    print("=" * 50)
+    
     me = await client.get_me()
-    print(f"✅ Connected as: @{me.username}")
-    print("🤖 Bot running...\n")
-    await client.run_until_disconnected()
+    print(f"👤 Logged in as: @{me.username}")
+    print(f"📱 Phone: {me.phone}")
+    
+    # Verify file was created
+    if os.path.exists(f"{SESSION_NAME}.session"):
+        size = os.path.getsize(f"{SESSION_NAME}.session")
+        print(f"📁 File: {SESSION_NAME}.session ({size} bytes)")
+        
+        if size > 1000:
+            print("✅ Session file is valid and ready to use!")
+        else:
+            print("⚠️ WARNING: Session file is only {size} bytes - may be corrupted!")
+    else:
+        print("❌ ERROR: Session file was not created!")
+    
+    await client.disconnect()
+    print("\n📥 Download this file from the folder icon on the left")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+loop = asyncio.get_event_loop()
+loop.run_until_complete(create())
