@@ -1,5 +1,6 @@
 import asyncio
-from telethon import TelegramClient, events
+from telegram import Bot, Update
+from telegram.ext import Application, MessageHandler, filters
 import os
 
 print("=" * 50)
@@ -9,9 +10,7 @@ print("=" * 50)
 # Bot token
 BOT_TOKEN = "8602729297:AAGog9z7FVCs8--IoajFT4JlS3vwga8pxUI"
 
-API_ID = 37303512
-API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
-
+# Source channels (channel usernames)
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -25,44 +24,73 @@ source_channels = [
 target_channel = "NewsWith_Abiy"
 your_link = "https://t.me/NewsWith_Abiy"
 
-print(f"\n🤖 Using bot token")
+print(f"\n🤖 Bot: @AbiyOfficial_bot")
 print(f"📡 Monitoring {len(source_channels)} channels:")
 for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# Create client with bot token
-client = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-
+# Store forwarded message IDs
 forwarded_messages = set()
 
-@client.on(events.NewMessage)
-async def handler(event):
+async def handle_message(update: Update, context):
     try:
-        chat = await event.get_chat()
-        if chat.username and chat.username in source_channels:
-            msg_id = f"{chat.id}_{event.id}"
-            if msg_id in forwarded_messages:
-                return
-            forwarded_messages.add(msg_id)
-            print(f"\n📨 From @{chat.username}")
-            text = event.raw_text or ""
-            new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-            if event.message.media:
-                await client.send_file(target_channel, event.message.media, caption=new_text[:1024])
-            else:
-                await client.send_message(target_channel, new_text[:4096])
-            print("✅ Forwarded")
+        message = update.channel_post or update.message
+        if not message:
+            return
+        
+        chat = message.chat
+        if not chat.username or chat.username not in source_channels:
+            return
+        
+        msg_id = f"{chat.id}_{message.message_id}"
+        if msg_id in forwarded_messages:
+            print(f"⏭️ Skipping duplicate from @{chat.username}")
+            return
+        
+        forwarded_messages.add(msg_id)
+        if len(forwarded_messages) > 1000:
+            forwarded_messages.clear()
+        
+        print(f"\n📨 NEW Message from @{chat.username}")
+        text = message.text or message.caption or ""
+        new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+        
+        # Forward the message
+        if message.photo:
+            photo = message.photo[-1].file_id
+            await context.bot.send_photo(chat_id=target_channel, photo=photo, caption=new_text[:1024])
+            print("📤 Forwarded photo")
+        elif message.video:
+            await context.bot.send_video(chat_id=target_channel, video=message.video.file_id, caption=new_text[:1024])
+            print("📤 Forwarded video")
+        elif message.document:
+            await context.bot.send_document(chat_id=target_channel, document=message.document.file_id, caption=new_text[:1024])
+            print("📤 Forwarded document")
+        elif message.text:
+            await context.bot.send_message(chat_id=target_channel, text=new_text[:4096])
+            print(f"📤 Forwarded text: {new_text[:50]}...")
+        else:
+            print(f"⚠️ Unknown message type from @{chat.username}")
+        
+        print("✅ Done!")
+        
     except Exception as e:
         print(f"❌ Error: {e}")
 
 async def main():
-    print("\n🔌 Connecting...")
-    await client.start()
-    me = await client.get_me()
-    print(f"✅ Connected as: @{me.username}")
-    print("🤖 Bot running...\n")
-    await client.run_until_disconnected()
+    print("\n🔌 Connecting to Telegram...")
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(MessageHandler(filters.ALL, handle_message))
+    
+    await application.initialize()
+    await application.start()
+    print("✅ Bot is running!")
+    print("🤖 Waiting for messages...\n")
+    
+    # Keep the bot running
+    await application.updater.start_polling()
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
