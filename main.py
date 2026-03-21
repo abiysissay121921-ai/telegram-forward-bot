@@ -13,7 +13,7 @@ for file in os.listdir('.'):
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# ALL 7 SOURCE CHANNELS (UPDATED)
+# ALL 7 SOURCE CHANNELS
 source_channels = [
     "ayuzehabeshanews",        # https://t.me/ayuzehabeshanews
     "Addis_News",              # https://t.me/Addis_News
@@ -21,16 +21,18 @@ source_channels = [
     "tikvahethiopia",          # https://t.me/tikvahethiopia
     "eliasmeseret",            # https://t.me/eliasmeseret
     "TikvahUniversity",        # https://t.me/TikvahUniversity
-    "abiyselol",               # https://t.me/abiyselol (NEW)
+    "abiyselol",               # https://t.me/abiyselol
 ]
 
-target_channel = "Newswithabiy"
-your_link = "https://t.me/Newswithabiy"
+# UPDATED TARGET CHANNEL
+target_channel = "NewsWith_Abiy"
+your_link = "https://t.me/NewsWith_Abiy"
 
 print(f"\n📡 Monitoring {len(source_channels)} channels:")
 for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
+print(f"🔗 Your channel link: {your_link}")
 
 # Session file name
 session_file = "my_forward_bot_session.session"
@@ -51,7 +53,7 @@ async def handler(event):
         if chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
-            new_text = f"{text}\n\n{your_link}\nሰላማችሁ ይብዛ!"
+            new_text = f"{text}\n\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
                 await client.send_file(target_channel, event.message.media, caption=new_text)
