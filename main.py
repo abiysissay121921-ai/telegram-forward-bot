@@ -9,7 +9,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# REMOVED Apostolic_Answers_chat - it's a GROUP, not a channel
+# SOURCE CHANNELS (only channels, no groups)
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -20,30 +20,41 @@ source_channels = [
     "abiyselol",
 ]
 
+# TARGET CHANNEL
 target_channel = "NewsWith_Abiy"
 your_link = "https://t.me/NewsWith_Abiy"
 
-print(f"📡 Monitoring {len(source_channels)} channels:")
+print(f"\n📡 Monitoring {len(source_channels)} channels:")
 for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
+print(f"🔗 Your link: {your_link}")
 
-session_file = "bot_final_2026.session"
+# SESSION FILE NAME
+session_file = "bot_2026_v3.session"
 
 if not os.path.exists(session_file):
     print(f"❌ Session file not found: {session_file}")
+    print("Files in directory:")
+    for f in os.listdir('.'):
+        print(f"   - {f}")
     exit(1)
 
+print(f"✅ Session file found: {session_file}")
+
+# Create client
 client = TelegramClient(session_file, API_ID, API_HASH)
 
 @client.on(events.NewMessage)
 async def handler(event):
     try:
         chat = await event.get_chat()
-        # Only process if it's a channel (not a group)
+        # Only process if it's a channel with a username in our list
         if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
+            
+            # Add link THREE TIMES + signature
             new_text = f"{text}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             if event.message.media:
@@ -57,10 +68,11 @@ async def handler(event):
         print(f"❌ Error: {e}")
 
 async def main():
+    print("\n🔌 Connecting to Telegram...")
     await client.start()
     me = await client.get_me()
     print(f"✅ Connected as: @{me.username}")
-    print("🤖 Bot is running...")
+    print("🤖 Bot is running and waiting for messages...\n")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
