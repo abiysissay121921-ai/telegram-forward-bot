@@ -51,7 +51,7 @@ async def handler(event):
         if chat.username and chat.username in source_channels:
             print(f"\n📨 Message from @{chat.username}")
             text = event.raw_text or ""
-            new_text = f"{text}\n\n{your_link}\nሰላም ለእናንተ!"
+            new_text = f"{text}\n\n{your_link}\nሰላማችሁ ይብዛ!"
             
             if event.message.media:
                 await client.send_file(target_channel, event.message.media, caption=new_text)
