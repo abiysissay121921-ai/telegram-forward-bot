@@ -19,6 +19,9 @@ source_channels = [
     "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
+    "zena24now",
+    "AAUMEREJA",
+    "AAUNEWS1",
 ]
 
 target_channel = "NewsWith_Abiy"
@@ -118,7 +121,7 @@ async def handler(event):
             clean_text_content = clean_text(text)
             
             # Add your link 3 times + signature
-            new_text = f"{clean_text_content}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+            new_text = f"የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!\n {clean_text_content}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
             # Telegram caption limit is 1024 characters
             if len(new_text) > 1024:
