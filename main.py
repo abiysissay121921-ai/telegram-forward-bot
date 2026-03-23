@@ -2,6 +2,7 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import glob
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -10,7 +11,6 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
-# ALL SOURCE CHANNELS (add any new ones here)
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -35,49 +35,33 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# SESSION FILE
-SESSION_FILE = "bot_1732123456.session"
-
-if not os.path.exists(SESSION_FILE):
-    print(f"\n❌ Session file not found: {SESSION_FILE}")
+# AUTO-DETECT ANY SESSION FILE
+session_files = glob.glob("*.session")
+if not session_files:
+    print("\n❌ No .session file found!")
     print("Files in directory:")
     for f in os.listdir('.'):
         print(f"   - {f}")
     exit(1)
 
-print(f"\n✅ Session file: {SESSION_FILE}")
+SESSION_FILE = session_files[0]
+print(f"\n✅ Using session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
 forwarded_messages = set()
 
 def remove_source_links(text):
-    """Remove ALL source channel links and mentions"""
     if not text:
         return ""
-    
     for channel in source_channels:
-        # Remove @username
         text = re.sub(rf'@{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        # Remove https://t.me/username
         text = re.sub(rf'https?://t\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        # Remove t.me/username
         text = re.sub(rf't\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        # Remove telegram.me links
-        text = re.sub(rf'https?://telegram\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf'telegram\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-    
-    # Remove any remaining t.me links (generic)
     text = re.sub(r'https?://t\.me/\S+', '', text)
     text = re.sub(r't\.me/\S+', '', text)
-    text = re.sub(r'https?://telegram\.me/\S+', '', text)
-    text = re.sub(r'telegram\.me/\S+', '', text)
-    
-    # Clean up extra spaces and blank lines
     text = re.sub(r'\n\s*\n', '\n\n', text)
-    text = re.sub(r' +', ' ', text)
     text = text.strip()
-    
     return text
 
 @client.on(events.NewMessage)
@@ -94,20 +78,16 @@ async def handler(event):
                 forwarded_messages.clear()
             
             print(f"\n📨 From @{chat.username}")
-            
-            # Get original text and REMOVE ALL SOURCE LINKS
             original_text = event.raw_text or ""
             cleaned_text = remove_source_links(original_text)
             
             intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
             
-            # Build final message
             if cleaned_text:
                 new_text = f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             else:
                 new_text = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # Telegram caption limit is 1024 characters
             if len(new_text) > 1024:
                 new_text = new_text[:1020] + "..."
             
@@ -118,7 +98,6 @@ async def handler(event):
                 await client.send_message(target_channel, new_text)
                 print("📤 Forwarded text")
             print("✅ Done!")
-            
     except Exception as e:
         print(f"❌ Error: {e}")
 
