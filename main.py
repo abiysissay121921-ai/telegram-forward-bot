@@ -59,42 +59,23 @@ async def handler(event):
             
             print(f"\n📨 From @{chat.username}")
             text = event.raw_text or ""
-            
-            # Intro message
             intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
             
-            # Prepare caption
             if text:
-                caption = f"{text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+                new_text = f"{text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             else:
-                caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+                new_text = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            if len(caption) > 1024:
-                caption = caption[:1020] + "..."
+            if len(new_text) > 1024:
+                new_text = new_text[:1020] + "..."
             
-            # Handle media
             if event.message.media:
-                # Check if it's a group of media (album)
-                if hasattr(event.message, 'grouped_id') and event.message.grouped_id:
-                    # Get all messages in the same album
-                    print("📸 Found album/grouped media")
-                    # For albums, we need to send all media together
-                    # Telethon handles this automatically when using send_file with multiple files
-                    # But since we're in a handler for one message, we need to collect all
-                    # For simplicity, we'll forward as is - Telethon preserves albums when forwarding
-                    await client.send_file(target_channel, event.message.media, caption=caption)
-                    print("📤 Forwarded album/media with caption")
-                else:
-                    # Single media
-                    await client.send_file(target_channel, event.message.media, caption=caption)
-                    print("📤 Forwarded single media")
+                await client.send_file(target_channel, event.message.media, caption=new_text)
+                print("📤 Forwarded with media")
             else:
-                # Text only
-                await client.send_message(target_channel, caption)
-                print(f"📤 Forwarded text")
-            
+                await client.send_message(target_channel, new_text)
+                print("📤 Forwarded")
             print("✅ Done!")
-            
     except Exception as e:
         print(f"❌ Error: {e}")
 
