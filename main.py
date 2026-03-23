@@ -2,7 +2,6 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
-import glob
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -35,17 +34,16 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# AUTO-DETECT ANY SESSION FILE
-session_files = glob.glob("*.session")
-if not session_files:
-    print("\n❌ No .session file found!")
+SESSION_FILE = "bot_1732123456.session"
+
+if not os.path.exists(SESSION_FILE):
+    print(f"\n❌ Session file not found: {SESSION_FILE}")
     print("Files in directory:")
     for f in os.listdir('.'):
         print(f"   - {f}")
     exit(1)
 
-SESSION_FILE = session_files[0]
-print(f"\n✅ Using session file: {SESSION_FILE}")
+print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
