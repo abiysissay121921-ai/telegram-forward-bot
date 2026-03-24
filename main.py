@@ -31,6 +31,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
+# Session file
 SESSION_FILE = "session.session"
 
 if not os.path.exists(SESSION_FILE):
@@ -44,78 +45,68 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded message IDs
-forwarded_messages = set()
+# Store forwarded messages
+forwarded = set()
 
-def remove_source_links(text):
+def clean_text(text):
     if not text:
         return ""
-    for channel in source_channels:
-        text = re.sub(rf'@{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf'https?://t\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf't\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
+    for ch in source_channels:
+        text = re.sub(rf'@{ch}\b', '', text, flags=re.IGNORECASE)
+        text = re.sub(rf'https?://t\.me/{ch}\b', '', text, flags=re.IGNORECASE)
+        text = re.sub(rf't\.me/{ch}\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'https?://t\.me/\S+', '', text)
     text = re.sub(r't\.me/\S+', '', text)
     text = re.sub(r'\n\s*\n', '\n\n', text)
-    text = text.strip()
-    return text
+    return text.strip()
 
 @client.on(events.NewMessage)
 async def handler(event):
     try:
         chat = await event.get_chat()
+        if not chat.username or chat.username not in source_channels:
+            return
         
-        # Only process channels in our list
-        if chat.username and chat.username in source_channels:
-            
-            # Create unique ID
-            message_id = f"{chat.id}_{event.id}"
-            
-            # Check for duplicate
-            if message_id in forwarded_messages:
-                print(f"⏭️ SKIPPING DUPLICATE: {message_id}")
-                return
-            
-            # Mark as forwarded
-            forwarded_messages.add(message_id)
-            
-            # Clean up old entries (keep last 1000)
-            if len(forwarded_messages) > 1000:
-                forwarded_messages.clear()
-            
-            print(f"\n📨 NEW MESSAGE: {message_id} from @{chat.username}")
-            
-            # Get text and clean it
-            original_text = event.raw_text or ""
-            cleaned_text = remove_source_links(original_text)
-            
-            # Build message
-            intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
-            
-            if cleaned_text:
-                final_message = f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-            else:
-                final_message = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-            
-            # Telegram limits
-            if len(final_message) > 4096:
-                final_message = final_message[:4090] + "..."
-            
-            # Send the message
-            if event.message.media:
-                await client.send_file(target_channel, event.message.media, caption=final_message)
-                print("📸 Media sent")
-            else:
-                await client.send_message(target_channel, final_message)
-                print("📤 Text sent")
-            
-            print("✅ Done!")
-            
+        msg_id = f"{chat.id}_{event.id}"
+        if msg_id in forwarded:
+            print(f"⏭️ Duplicate: {msg_id}")
+            return
+        
+        forwarded.add(msg_id)
+        if len(forwarded) > 1000:
+            forwarded.clear()
+        
+        print(f"\n📨 From @{chat.username}")
+        
+        # Clean text
+        original = event.raw_text or ""
+        cleaned = clean_text(original)
+        
+        # Build message
+        intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
+        
+        if cleaned:
+            msg = f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+        else:
+            msg = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+        
+        if len(msg) > 4096:
+            msg = msg[:4090] + "..."
+        
+        # Send
+        if event.message.media:
+            await client.send_file(target_channel, event.message.media, caption=msg)
+            print("📸 Media sent")
+        else:
+            await client.send_message(target_channel, msg)
+            print("📤 Text sent")
+        print("✅ Done!")
+        
     except Exception as e:
         print(f"❌ Error: {e}")
 
 async def main():
-    print("\n🔌 Connecting to Telegram...")
+    print("\n🔌 Connecting...")
     await client.start()
     me = await client.get_me()
     print(f"✅ Connected as: @{me.username}")
