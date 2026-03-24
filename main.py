@@ -2,6 +2,7 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -35,7 +36,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# EASY SESSION NAME
+# SESSION FILE
 SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
@@ -70,6 +71,36 @@ def remove_source_links(text):
     
     return text
 
+async def send_media_without_forward_tag(message, caption):
+    """Send media without 'Forwarded from' tag"""
+    try:
+        if message.photo:
+            # Download photo and send as new
+            photo_data = await message.download_media(bytes)
+            await client.send_file(target_channel, photo_data, caption=caption)
+            return True
+        elif message.video:
+            # Download video and send as new
+            video_data = await message.download_media(bytes)
+            await client.send_file(target_channel, video_data, caption=caption)
+            return True
+        elif message.document:
+            # Download document and send as new
+            doc_data = await message.download_media(bytes)
+            await client.send_file(target_channel, doc_data, caption=caption)
+            return True
+        elif message.sticker:
+            # Stickers can be sent directly
+            await client.send_file(target_channel, message.media, caption=caption)
+            return True
+        else:
+            # Other media types
+            await client.send_file(target_channel, message.media, caption=caption)
+            return True
+    except Exception as e:
+        print(f"❌ Error sending media: {e}")
+        return False
+
 @client.on(events.NewMessage)
 async def handler(event):
     try:
@@ -81,15 +112,15 @@ async def handler(event):
             # Create unique ID for this message
             message_id = f"{chat.id}_{event.id}"
             
-            # Check if already forwarded
+            # CRITICAL: Check if already forwarded
             if message_id in forwarded_messages:
-                print(f"⏭️ SKIPPING DUPLICATE: {message_id} from @{chat.username}")
+                print(f"⏭️ SKIPPING DUPLICATE: {message_id}")
                 return
             
             # Mark as forwarded IMMEDIATELY
             forwarded_messages.add(message_id)
             
-            # Limit set size
+            # Clean up old entries
             if len(forwarded_messages) > 5000:
                 forwarded_messages.clear()
             
@@ -108,16 +139,16 @@ async def handler(event):
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # FORWARD THE MESSAGE EXACTLY AS IS (PRESERVES ALBUMS)
+            # FORWARD WITHOUT "Forwarded from" TAG
             if event.message.media:
-                # Forward the original message - this preserves albums perfectly
-                await client.forward_messages(target_channel, event.message)
-                print("📸 Forwarded media (album preserved)")
-                
-                # Send caption as separate message below
-                if caption:
-                    await client.send_message(target_channel, caption)
-                    print("📝 Caption sent below")
+                # Send media as new (no forward tag)
+                success = await send_media_without_forward_tag(event.message, caption)
+                if success:
+                    print("📸 Forwarded media (no 'Forwarded from' tag)")
+                else:
+                    # Fallback
+                    await client.send_file(target_channel, event.message.media, caption=caption)
+                    print("📸 Forwarded media (fallback)")
             else:
                 # Text only
                 await client.send_message(target_channel, caption)
