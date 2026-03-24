@@ -70,17 +70,12 @@ def remove_source_links(text):
     
     return text
 
-async def send_media_and_caption(message, caption):
-    """Send media first, then caption"""
+async def send_media_with_caption(message, caption):
+    """Send media with caption attached (links included)"""
     try:
-        # Send media first
-        await client.send_file(target_channel, message.media)
-        print("📸 Media sent")
-        
-        # Then send caption
-        if caption:
-            await client.send_message(target_channel, caption)
-            print("📝 Caption sent")
+        # Send media with caption (links are inside the caption)
+        await client.send_file(target_channel, message.media, caption=caption)
+        print("📸 Media sent with caption (links included)")
         return True
     except Exception as e:
         print(f"❌ Error sending: {e}")
@@ -118,17 +113,17 @@ async def handler(event):
             # Create intro message
             intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
             
-            # Build final caption
+            # Build final caption (INCLUDES THE 3 LINKS)
             if cleaned_text:
                 caption = f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # SEND MEDIA FIRST, THEN CAPTION
+            # SEND MEDIA WITH CAPTION (LINKS INCLUDED)
             if event.message.media:
-                await send_media_and_caption(event.message, caption)
+                await send_media_with_caption(event.message, caption)
             else:
-                # Text only
+                # Text only - send as normal message
                 await client.send_message(target_channel, caption)
                 print("📤 Forwarded text")
             
