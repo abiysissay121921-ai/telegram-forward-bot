@@ -19,11 +19,8 @@ source_channels = [
     "TikvahUniversity",
     "abiyselol",
     "zena24now",
-    "AAUMEREJA",
-    "AAUNEWS1",
     "atc_news",
     "seledadotio",
-    "AAU_GENERAL",
 ]
 
 target_channel = "NewsWith_Abiy"
