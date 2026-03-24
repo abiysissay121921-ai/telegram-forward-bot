@@ -31,8 +31,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# NEW SESSION NAME
-SESSION_FILE = "new_session.session"
+SESSION_FILE = "session.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
