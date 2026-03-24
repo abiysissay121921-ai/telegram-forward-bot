@@ -40,9 +40,6 @@ SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
-    print("Files in directory:")
-    for f in os.listdir('.'):
-        print(f"   - {f}")
     exit(1)
 
 print(f"\n✅ Session file: {SESSION_FILE}")
@@ -58,20 +55,13 @@ def remove_source_links(text):
         return ""
     
     for channel in source_channels:
-        # Remove @channelname
         text = re.sub(rf'@{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        # Remove https://t.me/channelname
         text = re.sub(rf'https?://t\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
-        # Remove t.me/channelname
         text = re.sub(rf't\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
     
-    # Remove any remaining t.me links
     text = re.sub(r'https?://t\.me/\S+', '', text)
     text = re.sub(r't\.me/\S+', '', text)
-    
-    # Clean up formatting
     text = re.sub(r'\n\s*\n', '\n\n', text)
-    text = re.sub(r' +', ' ', text)
     text = text.strip()
     
     return text
@@ -82,7 +72,7 @@ async def handler(event):
         chat = await event.get_chat()
         
         # Only process channels in our list
-        if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
+        if chat.username and chat.username in source_channels:
             
             # Create unique ID to prevent duplicates
             message_id = f"{chat.id}_{event.id}"
@@ -114,33 +104,20 @@ async def handler(event):
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # Handle media
+            # FORWARD THE EXACT MESSAGE (PRESERVES ALBUMS)
             if event.message.media:
-                # Check if it's an album (grouped media)
-                if hasattr(event.message, 'grouped_id') and event.message.grouped_id:
-                    print("📸 Album detected - forwarding as album")
-                    # Forward the message AS-IS to preserve the album
-                    await client.forward_messages(target_channel, event.message)
-                    print("📸 Album forwarded successfully")
-                    
-                    # Send caption as a separate message after the album
-                    if caption:
-                        await client.send_message(target_channel, caption)
-                        print("📝 Caption sent below album")
-                else:
-                    # Single media - send with caption
-                    await client.send_file(target_channel, event.message.media, caption=caption)
-                    print("📤 Forwarded single media")
-            else:
-                # Text only - split long messages
-                if len(caption) > 4096:
-                    # Split long text into multiple messages
-                    for i in range(0, len(caption), 4096):
-                        await client.send_message(target_channel, caption[i:i+4096])
-                    print("📤 Forwarded long text (split into multiple messages)")
-                else:
+                # Forward the original message exactly as is
+                await client.forward_messages(target_channel, event.message)
+                print("📸 Forwarded original media (album preserved)")
+                
+                # Send caption as a separate message
+                if caption:
                     await client.send_message(target_channel, caption)
-                    print("📤 Forwarded text")
+                    print("📝 Caption sent")
+            else:
+                # Text only
+                await client.send_message(target_channel, caption)
+                print("📤 Forwarded text")
             
             print("✅ Done!")
             
