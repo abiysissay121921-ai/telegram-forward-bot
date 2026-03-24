@@ -2,7 +2,6 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
-import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
