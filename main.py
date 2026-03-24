@@ -35,7 +35,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# SESSION FILE
+# EASY SESSION NAME
 SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
@@ -69,36 +69,6 @@ def remove_source_links(text):
     text = text.strip()
     
     return text
-
-async def copy_media(message, caption):
-    """Copy media without 'Forwarded from' tag"""
-    try:
-        if message.photo:
-            # Download and send photo
-            photo = await message.download_media(bytes)
-            await client.send_file(target_channel, photo, caption=caption)
-            return True
-        elif message.video:
-            # Download and send video
-            video = await message.download_media(bytes)
-            await client.send_file(target_channel, video, caption=caption)
-            return True
-        elif message.document:
-            # Download and send document
-            doc = await message.download_media(bytes)
-            await client.send_file(target_channel, doc, caption=caption)
-            return True
-        elif message.sticker:
-            # Send sticker
-            await client.send_file(target_channel, message.media, caption=caption)
-            return True
-        else:
-            # For other media types, try direct send
-            await client.send_file(target_channel, message.media, caption=caption)
-            return True
-    except Exception as e:
-        print(f"❌ Error copying media: {e}")
-        return False
 
 @client.on(events.NewMessage)
 async def handler(event):
@@ -138,16 +108,16 @@ async def handler(event):
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # Forward the message WITHOUT "Forwarded from" tag
+            # FORWARD THE MESSAGE EXACTLY AS IS (PRESERVES ALBUMS)
             if event.message.media:
-                # Copy media (no "Forwarded from" tag)
-                success = await copy_media(event.message, caption)
-                if success:
-                    print("📸 Forwarded media (no 'Forwarded from' tag)")
-                else:
-                    # Fallback: send as is
-                    await client.send_file(target_channel, event.message.media, caption=caption)
-                    print("📸 Forwarded media (fallback)")
+                # Forward the original message - this preserves albums perfectly
+                await client.forward_messages(target_channel, event.message)
+                print("📸 Forwarded media (album preserved)")
+                
+                # Send caption as separate message below
+                if caption:
+                    await client.send_message(target_channel, caption)
+                    print("📝 Caption sent below")
             else:
                 # Text only
                 await client.send_message(target_channel, caption)
