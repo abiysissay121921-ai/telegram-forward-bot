@@ -70,17 +70,6 @@ def remove_source_links(text):
     
     return text
 
-async def send_media_with_caption(message, caption):
-    """Send media with caption attached (links included)"""
-    try:
-        # Send media with caption (links are inside the caption)
-        await client.send_file(target_channel, message.media, caption=caption)
-        print("📸 Media sent with caption (links included)")
-        return True
-    except Exception as e:
-        print(f"❌ Error sending: {e}")
-        return False
-
 @client.on(events.NewMessage)
 async def handler(event):
     try:
@@ -119,12 +108,22 @@ async def handler(event):
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
+            # Check caption length limit
+            if len(caption) > 1024:
+                caption = caption[:1020] + "..."
+            
             # SEND MEDIA WITH CAPTION (LINKS INCLUDED)
             if event.message.media:
-                await send_media_with_caption(event.message, caption)
+                # Send media with caption attached
+                await client.send_file(target_channel, event.message.media, caption=caption)
+                print("📸 Media sent with caption (links included)")
             else:
                 # Text only - send as normal message
-                await client.send_message(target_channel, caption)
+                if len(caption) > 4096:
+                    for i in range(0, len(caption), 4096):
+                        await client.send_message(target_channel, caption[i:i+4096])
+                else:
+                    await client.send_message(target_channel, caption)
                 print("📤 Forwarded text")
             
             print("✅ Done!")
