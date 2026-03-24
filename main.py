@@ -114,19 +114,33 @@ async def handler(event):
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # Telegram caption limit
-            if len(caption) > 1024:
-                caption = caption[:1020] + "..."
-            
-            # Forward the message AS-IS (preserves albums, multiple photos, videos)
+            # Handle media
             if event.message.media:
-                # Send media with caption - automatically preserves albums
-                await client.send_file(target_channel, event.message.media, caption=caption)
-                print("📤 Forwarded with media (album preserved)")
+                # Check if it's an album (grouped media)
+                if hasattr(event.message, 'grouped_id') and event.message.grouped_id:
+                    print("📸 Album detected - forwarding as album")
+                    # Forward the message AS-IS to preserve the album
+                    await client.forward_messages(target_channel, event.message)
+                    print("📸 Album forwarded successfully")
+                    
+                    # Send caption as a separate message after the album
+                    if caption:
+                        await client.send_message(target_channel, caption)
+                        print("📝 Caption sent below album")
+                else:
+                    # Single media - send with caption
+                    await client.send_file(target_channel, event.message.media, caption=caption)
+                    print("📤 Forwarded single media")
             else:
-                # Text only
-                await client.send_message(target_channel, caption)
-                print("📤 Forwarded text")
+                # Text only - split long messages
+                if len(caption) > 4096:
+                    # Split long text into multiple messages
+                    for i in range(0, len(caption), 4096):
+                        await client.send_message(target_channel, caption[i:i+4096])
+                    print("📤 Forwarded long text (split into multiple messages)")
+                else:
+                    await client.send_message(target_channel, caption)
+                    print("📤 Forwarded text")
             
             print("✅ Done!")
             
