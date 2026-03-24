@@ -10,6 +10,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
+# ALL SOURCE CHANNELS
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -34,7 +35,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# YOUR SESSION FILE
+# SESSION FILE
 SESSION_FILE = "bot_1774330681.session"
 
 if not os.path.exists(SESSION_FILE):
@@ -48,31 +49,32 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded messages
+# Store forwarded message IDs to prevent duplicates
 forwarded_messages = set()
 
-def remove_source_links(text):
-    """Remove source channel links from text"""
+def clean_text(text):
+    """Remove source channel links and mentions"""
     if not text:
         return ""
+    
     for channel in source_channels:
+        # Remove @channelname
         text = re.sub(rf'@{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
+        # Remove https://t.me/channelname
         text = re.sub(rf'https?://t\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
+        # Remove t.me/channelname
         text = re.sub(rf't\.me/{re.escape(channel)}\b', '', text, flags=re.IGNORECASE)
+    
+    # Remove any remaining t.me links
     text = re.sub(r'https?://t\.me/\S+', '', text)
     text = re.sub(r't\.me/\S+', '', text)
+    
+    # Clean up extra spaces and blank lines
     text = re.sub(r'\n\s*\n', '\n\n', text)
+    text = re.sub(r' +', ' ', text)
     text = text.strip()
+    
     return text
-
-async def forward_with_caption(message, caption):
-    """Forward message with caption - preserves albums automatically"""
-    if message.media:
-        # Send the message as-is (preserves albums, multiple photos, etc.)
-        await client.send_file(target_channel, message.media, caption=caption)
-    else:
-        # Text only
-        await client.send_message(target_channel, caption)
 
 @client.on(events.NewMessage)
 async def handler(event):
@@ -82,42 +84,45 @@ async def handler(event):
         # Only process channels in our list
         if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
             
-            # Create unique ID for this message
-            msg_id = f"{chat.id}_{event.id}"
+            # Create unique ID to prevent duplicates
+            message_id = f"{chat.id}_{event.id}"
             
-            # Check if already forwarded
-            if msg_id in forwarded_messages:
+            # Skip if already forwarded
+            if message_id in forwarded_messages:
                 print(f"⏭️ Skipping duplicate from @{chat.username}")
                 return
             
             # Mark as forwarded
-            forwarded_messages.add(msg_id)
+            forwarded_messages.add(message_id)
+            
+            # Keep memory in check
             if len(forwarded_messages) > 5000:
                 forwarded_messages.clear()
             
             print(f"\n📨 From @{chat.username}")
             
-            # Get original text and clean it
+            # Get original text and clean it (remove source links)
             original_text = event.raw_text or ""
-            cleaned_text = remove_source_links(original_text)
+            cleaned_text = clean_text(original_text)
             
-            # Create intro message to add
+            # Create intro message
             intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
             
-            # Build the caption (this will be added to the forwarded message)
+            # Build final caption
             if cleaned_text:
                 caption = f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
+            # Telegram caption limit
             if len(caption) > 1024:
                 caption = caption[:1020] + "..."
             
-            # FORWARD THE MESSAGE AS-IS (PRESERVES ORIGINAL FORMAT)
+            # Forward the message AS-IS (preserves albums, multiple photos)
             if event.message.media:
-                # Send media with caption (preserves albums automatically)
+                # Send media with caption - automatically preserves albums
                 await client.send_file(target_channel, event.message.media, caption=caption)
-                print("📤 Forwarded with media (preserves original format)")
+                print("📤 Forwarded with media (album preserved)")
             else:
                 # Text only
                 await client.send_message(target_channel, caption)
