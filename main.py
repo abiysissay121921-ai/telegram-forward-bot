@@ -2,7 +2,6 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
-import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -71,34 +70,20 @@ def remove_source_links(text):
     
     return text
 
-async def send_media_without_forward_tag(message, caption):
-    """Send media without 'Forwarded from' tag"""
+async def send_media_and_caption(message, caption):
+    """Send media first, then caption"""
     try:
-        if message.photo:
-            # Download photo and send as new
-            photo_data = await message.download_media(bytes)
-            await client.send_file(target_channel, photo_data, caption=caption)
-            return True
-        elif message.video:
-            # Download video and send as new
-            video_data = await message.download_media(bytes)
-            await client.send_file(target_channel, video_data, caption=caption)
-            return True
-        elif message.document:
-            # Download document and send as new
-            doc_data = await message.download_media(bytes)
-            await client.send_file(target_channel, doc_data, caption=caption)
-            return True
-        elif message.sticker:
-            # Stickers can be sent directly
-            await client.send_file(target_channel, message.media, caption=caption)
-            return True
-        else:
-            # Other media types
-            await client.send_file(target_channel, message.media, caption=caption)
-            return True
+        # Send media first
+        await client.send_file(target_channel, message.media)
+        print("📸 Media sent")
+        
+        # Then send caption
+        if caption:
+            await client.send_message(target_channel, caption)
+            print("📝 Caption sent")
+        return True
     except Exception as e:
-        print(f"❌ Error sending media: {e}")
+        print(f"❌ Error sending: {e}")
         return False
 
 @client.on(events.NewMessage)
@@ -112,12 +97,12 @@ async def handler(event):
             # Create unique ID for this message
             message_id = f"{chat.id}_{event.id}"
             
-            # CRITICAL: Check if already forwarded
+            # STRICT DUPLICATE CHECK
             if message_id in forwarded_messages:
                 print(f"⏭️ SKIPPING DUPLICATE: {message_id}")
                 return
             
-            # Mark as forwarded IMMEDIATELY
+            # MARK AS FORWARDED IMMEDIATELY
             forwarded_messages.add(message_id)
             
             # Clean up old entries
@@ -139,16 +124,9 @@ async def handler(event):
             else:
                 caption = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             
-            # FORWARD WITHOUT "Forwarded from" TAG
+            # SEND MEDIA FIRST, THEN CAPTION
             if event.message.media:
-                # Send media as new (no forward tag)
-                success = await send_media_without_forward_tag(event.message, caption)
-                if success:
-                    print("📸 Forwarded media (no 'Forwarded from' tag)")
-                else:
-                    # Fallback
-                    await client.send_file(target_channel, event.message.media, caption=caption)
-                    print("📸 Forwarded media (fallback)")
+                await send_media_and_caption(event.message, caption)
             else:
                 # Text only
                 await client.send_message(target_channel, caption)
