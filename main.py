@@ -10,6 +10,7 @@ print("=" * 50)
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
+# ONLY CHANNELS - NO GROUPS
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -34,7 +35,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "bot_1732123456.session"
+SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -66,7 +67,8 @@ def remove_source_links(text):
 async def handler(event):
     try:
         chat = await event.get_chat()
-        if chat.username and chat.username in source_channels:
+        # Only process if it's a CHANNEL (not a group)
+        if hasattr(chat, 'username') and chat.username and chat.username in source_channels:
             msg_id = f"{chat.id}_{event.id}"
             if msg_id in forwarded_messages:
                 print(f"⏭️ Skipping duplicate from @{chat.username}")
