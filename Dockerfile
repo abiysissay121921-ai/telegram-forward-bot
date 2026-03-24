@@ -6,6 +6,6 @@ COPY requirements.txt .
 COPY main.py .
 COPY my_bot.session .
 
-RUN pip install --no-cache-dir telethon
+RUN pip install telethon
 
 CMD ["python", "-u", "main.py"]
