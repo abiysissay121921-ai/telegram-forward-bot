@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 COPY main.py .
-COPY bot_1774330681.session .
+COPY mysession.session .
 
 RUN pip install telethon
 
