@@ -31,8 +31,8 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# Session file
-SESSION_FILE = "session.session"
+# USE THE NEW SESSION FILE
+SESSION_FILE = "my_new_bot.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -45,7 +45,6 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded messages
 forwarded = set()
 
 def clean_text(text):
@@ -78,11 +77,9 @@ async def handler(event):
         
         print(f"\n📨 From @{chat.username}")
         
-        # Clean text
         original = event.raw_text or ""
         cleaned = clean_text(original)
         
-        # Build message
         intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
         
         if cleaned:
@@ -93,7 +90,6 @@ async def handler(event):
         if len(msg) > 4096:
             msg = msg[:4090] + "..."
         
-        # Send
         if event.message.media:
             await client.send_file(target_channel, event.message.media, caption=msg)
             print("📸 Media sent")
