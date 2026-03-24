@@ -31,7 +31,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "my_new_bot.session"
+SESSION_FILE = "final_bot.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -39,7 +39,6 @@ if not os.path.exists(SESSION_FILE):
 
 print(f"\n✅ Session file: {SESSION_FILE}")
 
-# Create client with proper loop handling
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
 forwarded = set()
@@ -104,5 +103,4 @@ async def main():
     print("🤖 Bot running...\n")
     await client.run_until_disconnected()
 
-# Run the bot
 asyncio.run(main())
