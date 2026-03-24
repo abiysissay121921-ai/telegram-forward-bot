@@ -2,7 +2,6 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
-from collections import defaultdict
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -51,11 +50,9 @@ client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
 # Store forwarded messages
 forwarded_messages = set()
-# Store albums by group_id
-pending_albums = defaultdict(list)
-ALBUM_TIMEOUT = 2  # seconds to wait for album messages
 
 def remove_source_links(text):
+    """Remove source channel links from text"""
     if not text:
         return ""
     for channel in source_channels:
@@ -68,31 +65,14 @@ def remove_source_links(text):
     text = text.strip()
     return text
 
-async def send_album(album_id, chat_username):
-    """Send all photos in an album as a single grouped message"""
-    if album_id not in pending_albums:
-        return
-    
-    album_messages = pending_albums.pop(album_id)
-    
-    # Collect all media from the album
-    media_list = []
-    caption = None
-    
-    for msg_data in album_messages:
-        media_list.append(msg_data['media'])
-        if msg_data['caption'] and not caption:
-            caption = msg_data['caption']
-    
-    if media_list:
-        try:
-            await client.send_file(target_channel, media_list, caption=caption)
-            print(f"📸 Forwarded album with {len(media_list)} photos from @{chat_username}")
-        except Exception as e:
-            print(f"❌ Error sending album: {e}")
-            # Fallback: send individually
-            for media in media_list:
-                await client.send_file(target_channel, media, caption=caption if media == media_list[0] else None)
+async def forward_with_caption(message, caption):
+    """Forward message with caption - preserves albums automatically"""
+    if message.media:
+        # Send the message as-is (preserves albums, multiple photos, etc.)
+        await client.send_file(target_channel, message.media, caption=caption)
+    else:
+        # Text only
+        await client.send_message(target_channel, caption)
 
 @client.on(events.NewMessage)
 async def handler(event):
@@ -117,12 +97,14 @@ async def handler(event):
             
             print(f"\n📨 From @{chat.username}")
             
-            # Prepare caption
+            # Get original text and clean it
             original_text = event.raw_text or ""
             cleaned_text = remove_source_links(original_text)
             
+            # Create intro message to add
             intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
             
+            # Build the caption (this will be added to the forwarded message)
             if cleaned_text:
                 caption = f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
             else:
@@ -131,36 +113,16 @@ async def handler(event):
             if len(caption) > 1024:
                 caption = caption[:1020] + "..."
             
-            # Handle media
+            # FORWARD THE MESSAGE AS-IS (PRESERVES ORIGINAL FORMAT)
             if event.message.media:
-                # Check if this is part of an album (grouped media)
-                if hasattr(event.message, 'grouped_id') and event.message.grouped_id:
-                    album_id = event.message.grouped_id
-                    print(f"📸 Album detected (ID: {album_id})")
-                    
-                    # Store this message in the album
-                    pending_albums[album_id].append({
-                        'media': event.message.media,
-                        'caption': caption,
-                        'chat_username': chat.username
-                    })
-                    
-                    # Schedule album send after a short delay
-                    async def send_album_delayed(aid, username):
-                        await asyncio.sleep(ALBUM_TIMEOUT)
-                        await send_album(aid, username)
-                    
-                    # Only schedule once per album
-                    if len(pending_albums[album_id]) == 1:
-                        asyncio.create_task(send_album_delayed(album_id, chat.username))
-                else:
-                    # Single media (not part of an album)
-                    await client.send_file(target_channel, event.message.media, caption=caption)
-                    print("📤 Forwarded single media")
+                # Send media with caption (preserves albums automatically)
+                await client.send_file(target_channel, event.message.media, caption=caption)
+                print("📤 Forwarded with media (preserves original format)")
             else:
                 # Text only
                 await client.send_message(target_channel, caption)
                 print("📤 Forwarded text")
+            
             print("✅ Done!")
             
     except Exception as e:
