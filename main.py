@@ -36,7 +36,7 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 
 # SESSION FILE
-SESSION_FILE = "bot_1774330681.session"
+SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -52,8 +52,8 @@ client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 # Store forwarded message IDs to prevent duplicates
 forwarded_messages = set()
 
-def clean_text(text):
-    """Remove source channel links and mentions"""
+def remove_source_links(text):
+    """Remove ALL source channel links and mentions"""
     if not text:
         return ""
     
@@ -69,7 +69,7 @@ def clean_text(text):
     text = re.sub(r'https?://t\.me/\S+', '', text)
     text = re.sub(r't\.me/\S+', '', text)
     
-    # Clean up extra spaces and blank lines
+    # Clean up formatting
     text = re.sub(r'\n\s*\n', '\n\n', text)
     text = re.sub(r' +', ' ', text)
     text = text.strip()
@@ -101,9 +101,9 @@ async def handler(event):
             
             print(f"\n📨 From @{chat.username}")
             
-            # Get original text and clean it (remove source links)
+            # Get original text and remove source links
             original_text = event.raw_text or ""
-            cleaned_text = clean_text(original_text)
+            cleaned_text = remove_source_links(original_text)
             
             # Create intro message
             intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
@@ -118,7 +118,7 @@ async def handler(event):
             if len(caption) > 1024:
                 caption = caption[:1020] + "..."
             
-            # Forward the message AS-IS (preserves albums, multiple photos)
+            # Forward the message AS-IS (preserves albums, multiple photos, videos)
             if event.message.media:
                 # Send media with caption - automatically preserves albums
                 await client.send_file(target_channel, event.message.media, caption=caption)
