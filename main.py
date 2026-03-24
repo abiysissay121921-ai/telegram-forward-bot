@@ -40,14 +40,28 @@ SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
+    print("Files in directory:")
+    for f in os.listdir('.'):
+        print(f"   - {f}")
     exit(1)
 
 print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded message IDs to prevent duplicates
+# Store forwarded message IDs to prevent duplicates - USE A FILE TO PERSIST
 forwarded_messages = set()
+# Load existing forwarded messages from file if exists
+if os.path.exists("forwarded_ids.txt"):
+    with open("forwarded_ids.txt", "r") as f:
+        for line in f:
+            forwarded_messages.add(line.strip())
+
+def save_forwarded_ids():
+    """Save forwarded message IDs to file"""
+    with open("forwarded_ids.txt", "w") as f:
+        for msg_id in forwarded_messages:
+            f.write(f"{msg_id}\n")
 
 def remove_source_links(text):
     """Remove ALL source channel links and mentions"""
@@ -62,6 +76,7 @@ def remove_source_links(text):
     text = re.sub(r'https?://t\.me/\S+', '', text)
     text = re.sub(r't\.me/\S+', '', text)
     text = re.sub(r'\n\s*\n', '\n\n', text)
+    text = re.sub(r' +', ' ', text)
     text = text.strip()
     
     return text
@@ -74,22 +89,19 @@ async def handler(event):
         # Only process channels in our list
         if chat.username and chat.username in source_channels:
             
-            # Create unique ID to prevent duplicates
+            # Create unique ID for this message (use original message ID)
             message_id = f"{chat.id}_{event.id}"
             
-            # Skip if already forwarded
+            # CRITICAL: Check if already forwarded
             if message_id in forwarded_messages:
-                print(f"⏭️ Skipping duplicate from @{chat.username}")
+                print(f"⏭️ SKIPPING DUPLICATE: {message_id} from @{chat.username}")
                 return
             
-            # Mark as forwarded
+            # Mark as forwarded IMMEDIATELY
             forwarded_messages.add(message_id)
+            save_forwarded_ids()  # Save to file immediately
             
-            # Keep memory in check
-            if len(forwarded_messages) > 5000:
-                forwarded_messages.clear()
-            
-            print(f"\n📨 From @{chat.username}")
+            print(f"\n📨 NEW MESSAGE: {message_id} from @{chat.username}")
             
             # Get original text and remove source links
             original_text = event.raw_text or ""
@@ -129,6 +141,7 @@ async def main():
     await client.start()
     me = await client.get_me()
     print(f"✅ Connected as: @{me.username}")
+    print(f"📊 Already forwarded {len(forwarded_messages)} messages")
     print("🤖 Bot running...\n")
     await client.run_until_disconnected()
 
