@@ -2,6 +2,7 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -44,7 +45,9 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-forwarded_messages = set()
+# Store forwarded message IDs with timestamp
+forwarded_messages = {}
+DUPLICATE_WINDOW = 10  # seconds
 
 def remove_source_links(text):
     if not text:
@@ -64,13 +67,25 @@ async def handler(event):
     try:
         chat = await event.get_chat()
         if chat.username and chat.username in source_channels:
+            
+            # Create unique ID for this message
             message_id = f"{chat.id}_{event.id}"
+            current_time = time.time()
+            
+            # Check if already forwarded (with time window)
             if message_id in forwarded_messages:
-                print(f"⏭️ SKIPPING DUPLICATE: {message_id}")
-                return
-            forwarded_messages.add(message_id)
-            if len(forwarded_messages) > 5000:
-                forwarded_messages.clear()
+                last_time = forwarded_messages[message_id]
+                if current_time - last_time < DUPLICATE_WINDOW:
+                    print(f"⏭️ SKIPPING DUPLICATE: {message_id} (within {DUPLICATE_WINDOW}s)")
+                    return
+            
+            # Mark as forwarded with timestamp
+            forwarded_messages[message_id] = current_time
+            
+            # Clean up old entries (older than 1 hour)
+            for msg_id in list(forwarded_messages.keys()):
+                if current_time - forwarded_messages[msg_id] > 3600:
+                    del forwarded_messages[msg_id]
             
             print(f"\n📨 NEW MESSAGE: {message_id} from @{chat.username}")
             
@@ -93,6 +108,7 @@ async def handler(event):
                 await client.send_message(target_channel, caption)
                 print("📤 Text sent")
             print("✅ Done!")
+            
     except Exception as e:
         print(f"❌ Error: {e}")
 
