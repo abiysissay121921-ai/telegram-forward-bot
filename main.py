@@ -3,6 +3,7 @@ from telethon import TelegramClient, events
 import os
 import re
 import time
+import hashlib
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -46,8 +47,9 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
 # Store forwarded message IDs with timestamp
-forwarded_messages = {}
-DUPLICATE_WINDOW = 10  # seconds
+forwarded_ids = {}
+forwarded_hashes = {}
+DUPLICATE_WINDOW = 5  # seconds
 
 def remove_source_links(text):
     if not text:
@@ -62,6 +64,15 @@ def remove_source_links(text):
     text = text.strip()
     return text
 
+def get_message_hash(message):
+    """Create a unique hash for the message content"""
+    text = message.raw_text or ""
+    if message.media:
+        # For media, use message ID + chat ID
+        return f"{message.chat_id}_{message.id}"
+    # For text, hash the content
+    return hashlib.md5(text.encode()).hexdigest()
+
 @client.on(events.NewMessage)
 async def handler(event):
     try:
@@ -70,22 +81,34 @@ async def handler(event):
             
             # Create unique ID for this message
             message_id = f"{chat.id}_{event.id}"
+            message_hash = get_message_hash(event.message)
             current_time = time.time()
             
-            # Check if already forwarded (with time window)
-            if message_id in forwarded_messages:
-                last_time = forwarded_messages[message_id]
+            # Check by ID
+            if message_id in forwarded_ids:
+                last_time = forwarded_ids[message_id]
                 if current_time - last_time < DUPLICATE_WINDOW:
-                    print(f"⏭️ SKIPPING DUPLICATE: {message_id} (within {DUPLICATE_WINDOW}s)")
+                    print(f"⏭️ SKIPPING DUPLICATE (ID): {message_id}")
                     return
             
-            # Mark as forwarded with timestamp
-            forwarded_messages[message_id] = current_time
+            # Check by content hash
+            if message_hash in forwarded_hashes:
+                last_time = forwarded_hashes[message_hash]
+                if current_time - last_time < DUPLICATE_WINDOW:
+                    print(f"⏭️ SKIPPING DUPLICATE (HASH): {message_hash}")
+                    return
             
-            # Clean up old entries (older than 1 hour)
-            for msg_id in list(forwarded_messages.keys()):
-                if current_time - forwarded_messages[msg_id] > 3600:
-                    del forwarded_messages[msg_id]
+            # Mark as forwarded
+            forwarded_ids[message_id] = current_time
+            forwarded_hashes[message_hash] = current_time
+            
+            # Clean up old entries (older than 1 minute)
+            for msg_id in list(forwarded_ids.keys()):
+                if current_time - forwarded_ids[msg_id] > 60:
+                    del forwarded_ids[msg_id]
+            for h in list(forwarded_hashes.keys()):
+                if current_time - forwarded_hashes[h] > 60:
+                    del forwarded_hashes[h]
             
             print(f"\n📨 NEW MESSAGE: {message_id} from @{chat.username}")
             
