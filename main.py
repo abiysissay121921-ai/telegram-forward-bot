@@ -2,6 +2,7 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -45,7 +46,9 @@ print(f"\n✅ Session file: {SESSION_FILE} ({size} bytes)")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-forwarded = set()
+# Store forwarded messages with timestamp
+forwarded = {}
+DUPLICATE_WINDOW = 10  # seconds
 
 def clean_text(text):
     if not text:
@@ -67,13 +70,22 @@ async def handler(event):
             return
         
         msg_id = f"{chat.id}_{event.id}"
-        if msg_id in forwarded:
-            print(f"⏭️ Skipping duplicate: {msg_id}")
-            return
+        current_time = time.time()
         
-        forwarded.add(msg_id)
-        if len(forwarded) > 1000:
-            forwarded.clear()
+        # Check if already forwarded (with time window)
+        if msg_id in forwarded:
+            last_time = forwarded[msg_id]
+            if current_time - last_time < DUPLICATE_WINDOW:
+                print(f"⏭️ Skipping duplicate: {msg_id}")
+                return
+        
+        # Mark as forwarded
+        forwarded[msg_id] = current_time
+        
+        # Clean up old entries (older than 1 hour)
+        for mid in list(forwarded.keys()):
+            if current_time - forwarded[mid] > 3600:
+                del forwarded[mid]
         
         print(f"\n📨 From @{chat.username}")
         
