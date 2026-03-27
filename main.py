@@ -2,7 +2,6 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
-import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -43,7 +42,8 @@ if not os.path.exists(SESSION_FILE):
 
 print(f"\n✅ Session file: {SESSION_FILE}")
 
-# Store forwarded messages
+client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
+
 forwarded = set()
 
 def clean_text(text):
@@ -58,71 +58,54 @@ def clean_text(text):
     text = re.sub(r'\n\s*\n', '\n\n', text)
     return text.strip()
 
-async def run_bot():
-    """Run the bot with auto-reconnect"""
-    client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-    
-    @client.on(events.NewMessage)
-    async def handler(event):
-        try:
-            chat = await event.get_chat()
-            if not chat.username or chat.username not in source_channels:
-                return
-            
-            msg_id = f"{chat.id}_{event.id}"
-            if msg_id in forwarded:
-                return
-            
-            forwarded.add(msg_id)
-            if len(forwarded) > 1000:
-                forwarded.clear()
-            
-            print(f"\n📨 From @{chat.username}")
-            
-            original = event.raw_text or ""
-            cleaned = clean_text(original)
-            
-            intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
-            
-            if cleaned:
-                msg = f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-            else:
-                msg = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-            
-            if len(msg) > 4096:
-                msg = msg[:4090] + "..."
-            
-            if event.message.media:
-                await client.send_file(target_channel, event.message.media, caption=msg)
-                print("📸 Media sent")
-            else:
-                await client.send_message(target_channel, msg)
-                print("📤 Text sent")
-            print("✅ Done!")
-            
-        except Exception as e:
-            print(f"❌ Error: {e}")
-    
+@client.on(events.NewMessage)
+async def handler(event):
     try:
-        print("\n🔌 Connecting to Telegram...")
-        await client.start()
-        me = await client.get_me()
-        print(f"✅ Connected as: @{me.username}")
-        print("🤖 Bot running...\n")
-        await client.run_until_disconnected()
+        chat = await event.get_chat()
+        if not chat.username or chat.username not in source_channels:
+            return
+        
+        msg_id = f"{chat.id}_{event.id}"
+        if msg_id in forwarded:
+            return
+        
+        forwarded.add(msg_id)
+        if len(forwarded) > 1000:
+            forwarded.clear()
+        
+        print(f"\n📨 From @{chat.username}")
+        
+        original = event.raw_text or ""
+        cleaned = clean_text(original)
+        
+        intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
+        
+        if cleaned:
+            msg = f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+        else:
+            msg = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+        
+        if len(msg) > 4096:
+            msg = msg[:4090] + "..."
+        
+        if event.message.media:
+            await client.send_file(target_channel, event.message.media, caption=msg)
+            print("📸 Media sent")
+        else:
+            await client.send_message(target_channel, msg)
+            print("📤 Text sent")
+        print("✅ Done!")
+        
     except Exception as e:
-        print(f"❌ Connection lost: {e}")
-        print("🔄 Reconnecting in 30 seconds...")
-        await asyncio.sleep(30)
-        return False
-    return True
+        print(f"❌ Error: {e}")
 
 async def main():
-    while True:
-        success = await run_bot()
-        if not success:
-            continue
-        break
+    print("\n🔌 Connecting to Telegram...")
+    await client.start()
+    me = await client.get_me()
+    print(f"✅ Connected as: @{me.username}")
+    print("🤖 Bot running...\n")
+    await client.run_until_disconnected()
 
 if __name__ == "__main__":
     asyncio.run(main())
