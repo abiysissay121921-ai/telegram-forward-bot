@@ -2,6 +2,7 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT")
@@ -44,7 +45,6 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded messages to prevent duplicates
 forwarded = set()
 
 def clean_text(text):
@@ -66,18 +66,11 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
         
-        # Create unique ID for this message
         msg_id = f"{chat.id}_{event.id}"
-        
-        # Check for duplicate
         if msg_id in forwarded:
-            print(f"⏭️ Skipping duplicate: {msg_id}")
             return
         
-        # Add to set
         forwarded.add(msg_id)
-        
-        # Keep set size manageable
         if len(forwarded) > 1000:
             forwarded.clear()
         
@@ -107,13 +100,26 @@ async def handler(event):
     except Exception as e:
         print(f"❌ Error: {e}")
 
+async def run_bot():
+    try:
+        await client.start()
+        me = await client.get_me()
+        print(f"✅ Connected as: @{me.username}")
+        print("🤖 Bot running...\n")
+        await client.run_until_disconnected()
+    except Exception as e:
+        print(f"❌ Disconnected: {e}")
+        print("🔄 Reconnecting in 30 seconds...")
+        await asyncio.sleep(30)
+        return False
+    return True
+
 async def main():
-    print("\n🔌 Connecting to Telegram...")
-    await client.start()
-    me = await client.get_me()
-    print(f"✅ Connected as: @{me.username}")
-    print("🤖 Bot running...\n")
-    await client.run_until_disconnected()
+    while True:
+        success = await run_bot()
+        if not success:
+            continue
+        break
 
 if __name__ == "__main__":
     asyncio.run(main())
