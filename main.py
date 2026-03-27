@@ -44,6 +44,7 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
+# Store forwarded messages to prevent duplicates
 forwarded = set()
 
 def clean_text(text):
@@ -65,11 +66,18 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
         
+        # Create unique ID for this message
         msg_id = f"{chat.id}_{event.id}"
+        
+        # Check for duplicate
         if msg_id in forwarded:
+            print(f"⏭️ Skipping duplicate: {msg_id}")
             return
         
+        # Add to set
         forwarded.add(msg_id)
+        
+        # Keep set size manageable
         if len(forwarded) > 1000:
             forwarded.clear()
         
