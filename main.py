@@ -32,8 +32,10 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
+# SESSION FILE
 SESSION_FILE = "my_bot.session"
 
+# Check if session exists
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
     print("Files in directory:")
@@ -43,11 +45,14 @@ if not os.path.exists(SESSION_FILE):
 
 print(f"\n✅ Session file: {SESSION_FILE}")
 
+# Create client
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
+# Store forwarded messages
 forwarded = set()
 
 def clean_text(text):
+    """Remove source channel links"""
     if not text:
         return ""
     for ch in source_channels:
@@ -66,7 +71,10 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
         
+        # Unique ID for message
         msg_id = f"{chat.id}_{event.id}"
+        
+        # Prevent duplicates
         if msg_id in forwarded:
             return
         
@@ -76,9 +84,11 @@ async def handler(event):
         
         print(f"\n📨 From @{chat.username}")
         
+        # Get and clean text
         original = event.raw_text or ""
         cleaned = clean_text(original)
         
+        # Build message
         intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
         
         if cleaned:
@@ -89,6 +99,7 @@ async def handler(event):
         if len(msg) > 4096:
             msg = msg[:4090] + "..."
         
+        # Send message
         if event.message.media:
             await client.send_file(target_channel, event.message.media, caption=msg)
             print("📸 Media sent")
@@ -101,6 +112,7 @@ async def handler(event):
         print(f"❌ Error: {e}")
 
 async def run_bot():
+    """Run bot with auto-reconnect"""
     try:
         await client.start()
         me = await client.get_me()
@@ -115,11 +127,12 @@ async def run_bot():
     return True
 
 async def main():
+    """Main loop with auto-reconnect"""
     while True:
         success = await run_bot()
-        if not success:
-            continue
-        break
+        if success:
+            break
+        # Continue loop if reconnect needed
 
 if __name__ == "__main__":
     asyncio.run(main())
