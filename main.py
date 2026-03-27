@@ -40,12 +40,11 @@ if not os.path.exists(SESSION_FILE):
         print(f"   - {f}")
     exit(1)
 
-size = os.path.getsize(SESSION_FILE)
-print(f"\n✅ Session file: {SESSION_FILE} ({size} bytes)")
+print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Simple set for forwarded messages
+# Store forwarded message IDs
 forwarded = set()
 
 def clean_text(text):
@@ -70,15 +69,15 @@ async def handler(event):
         # Create unique ID
         msg_id = f"{chat.id}_{event.id}"
         
-        # Check duplicate
+        # Check for duplicate
         if msg_id in forwarded:
             return
         
         # Add to set
         forwarded.add(msg_id)
         
-        # Keep set size manageable
-        if len(forwarded) > 2000:
+        # Clear set if too big
+        if len(forwarded) > 1000:
             forwarded.clear()
         
         print(f"\n📨 From @{chat.username}")
