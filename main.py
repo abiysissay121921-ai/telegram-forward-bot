@@ -1,5 +1,6 @@
 import asyncio
 from telethon import TelegramClient, events
+from telethon.tl.types import MessageMediaWebPage
 import os
 import re
 import time
@@ -52,17 +53,42 @@ client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 forwarded = set()
 
 def clean_text(text):
-    """Remove source channel links"""
+    """Remove source channel links ONLY - keep all other content"""
     if not text:
         return ""
+    # Remove source channel mentions and links
     for ch in source_channels:
         text = re.sub(rf'@{ch}\b', '', text, flags=re.IGNORECASE)
         text = re.sub(rf'https?://t\.me/{ch}\b', '', text, flags=re.IGNORECASE)
         text = re.sub(rf't\.me/{ch}\b', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'https?://t\.me/\S+', '', text)
-    text = re.sub(r't\.me/\S+', '', text)
+    # Clean up extra newlines but preserve original message structure
     text = re.sub(r'\n\s*\n', '\n\n', text)
     return text.strip()
+
+def can_handle_media(message):
+    """Check if we can handle this media type"""
+    try:
+        if not message.media:
+            return False, None
+        
+        # Check for webpages (links) - always handle these
+        if isinstance(message.media, MessageMediaWebPage):
+            return True, "webpage"
+        
+        # Check for valid media attributes
+        if hasattr(message.media, 'photo') and message.media.photo:
+            return True, "photo"
+        if hasattr(message.media, 'document') and message.media.document:
+            mime = getattr(message.media.document, 'mime_type', '')
+            # Skip problematic document types (voice, video notes, stickers)
+            if 'voice' in mime.lower() or 'video_note' in mime.lower() or 'sticker' in mime.lower():
+                return False, "unsupported"
+            return True, "document"
+        
+        return False, "unknown"
+    except Exception as e:
+        print(f"⚠️ Media check error: {e}")
+        return False, "error"
 
 @client.on(events.NewMessage)
 async def handler(event):
@@ -84,32 +110,59 @@ async def handler(event):
         
         print(f"\n📨 From @{chat.username}")
         
-        # Get and clean text
+        # Get and clean text (removes source links only)
         original = event.raw_text or ""
         cleaned = clean_text(original)
         
-        # Build message
+        # Build message - link appears ONCE only
         intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
         
         if cleaned:
-            msg = f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+            # Original content + intro + single link
+            msg = f"{cleaned}\n\n{intro}\n\n{your_link}\nሰላም ለእናንተ!"
         else:
-            msg = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+            # Just intro + single link
+            msg = f"{intro}\n\n{your_link}\nሰላም ለእናንተ!"
         
         if len(msg) > 4096:
             msg = msg[:4090] + "..."
         
-        # Send message
+        # Handle media messages
         if event.message.media:
-            await client.send_file(target_channel, event.message.media, caption=msg)
-            print("📸 Media sent")
+            can_handle, media_type = can_handle_media(event.message)
+            
+            if can_handle:
+                try:
+                    # Try to send with file
+                    await client.send_file(target_channel, event.message.media, caption=msg)
+                    print(f"📸 {media_type} sent")
+                except Exception as media_error:
+                    error_str = str(media_error)
+                    if "Constructor ID" in error_str:
+                        print(f"⚠️ Unsupported media type, sending text only")
+                        await client.send_message(target_channel, msg)
+                    else:
+                        raise media_error
+            else:
+                # Skip unsupported media but still send text if available
+                print(f"⏭️ Skipped unsupported media from @{chat.username}")
+                if cleaned:  # Still send text if available
+                    await client.send_message(target_channel, msg)
+                    print("📤 Text sent (media skipped)")
+                return
         else:
+            # Text-only message
             await client.send_message(target_channel, msg)
             print("📤 Text sent")
+        
         print("✅ Done!")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        error_str = str(e)
+        if "Constructor ID" in error_str:
+            print(f"⚠️ Skipped problematic message from @{chat.username if 'chat' in locals() else 'unknown'}")
+        else:
+            print(f"❌ Error: {error_str}")
 
 async def run_bot():
     """Run bot with auto-reconnect"""
