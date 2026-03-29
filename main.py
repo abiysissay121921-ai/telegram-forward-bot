@@ -33,7 +33,7 @@ for channel in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 
 # SESSION FILE
-SESSION_FILE = "my_bot.session"
+SESSION_FILE = "final_bot.session ."
 
 # Check if session exists
 if not os.path.exists(SESSION_FILE):
