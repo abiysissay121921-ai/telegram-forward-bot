@@ -31,7 +31,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "my_bot.session"
+SESSION_FILE = "bot_session.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -44,7 +44,7 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded messages to prevent duplicates
+# Store forwarded message IDs to prevent duplicates
 forwarded = set()
 
 def clean_text(text):
