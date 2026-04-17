@@ -15,7 +15,6 @@ source_channels = [
     "Addis_News",
     "NatnaelMekonnen21",
     "tikvahethiopia",
-    "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
     "zena24now",
@@ -31,7 +30,7 @@ for channel in source_channels:
     print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "bot_session.session"
+SESSION_FILE = "mysession.session"
 
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
@@ -44,7 +43,6 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Store forwarded message IDs to prevent duplicates
 forwarded = set()
 
 def clean_text(text):
@@ -66,18 +64,12 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
         
-        # Create unique ID for this message
         msg_id = f"{chat.id}_{event.id}"
-        
-        # Check for duplicate
         if msg_id in forwarded:
             print(f"⏭️ Skipping duplicate: {msg_id}")
             return
         
-        # Add to set
         forwarded.add(msg_id)
-        
-        # Keep set size manageable
         if len(forwarded) > 1000:
             forwarded.clear()
         
