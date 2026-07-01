@@ -2,9 +2,10 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import time
 
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT")
+print("🚀 TELEGRAM FORWARD BOT - LONG MESSAGE FIX")
 print("=" * 50)
 
 API_ID = 37303512
@@ -41,9 +42,11 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
+# Store forwarded message IDs to avoid duplicates
 forwarded = set()
 
 def clean_text(text):
+    """Clean text by removing source channel mentions and URLs"""
     if not text:
         return ""
     for ch in source_channels:
@@ -55,39 +58,119 @@ def clean_text(text):
     text = re.sub(r'\n\s*\n', '\n\n', text)
     return text.strip()
 
-def split_long_message(text, max_length=4096):
-    """Split long message into chunks of max_length"""
+def split_message_advanced(text, max_length=4000):
+    """
+    Advanced message splitter that preserves formatting
+    and ensures each chunk is under the limit
+    """
     if len(text) <= max_length:
         return [text]
     
     chunks = []
-    lines = text.split('\n')
+    
+    # Try to split by paragraphs first
+    paragraphs = text.split('\n\n')
     current_chunk = ""
     
-    for line in lines:
-        # If adding this line exceeds limit, save current chunk and start new one
-        if len(current_chunk) + len(line) + 1 > max_length:
+    for para in paragraphs:
+        # If a single paragraph is too long, split it by sentences
+        if len(para) > max_length:
+            # Save current chunk first
             if current_chunk:
-                chunks.append(current_chunk.strip())
-            current_chunk = line
+                chunks.append(current_chunk)
+                current_chunk = ""
+            
+            # Split long paragraph by sentences
+            sentences = para.replace('!', '.\n').replace('?', '.\n').split('. ')
+            temp_chunk = ""
+            
+            for sent in sentences:
+                if len(temp_chunk) + len(sent) + 2 <= max_length:
+                    if temp_chunk:
+                        temp_chunk += ". " + sent
+                    else:
+                        temp_chunk = sent
+                else:
+                    if temp_chunk:
+                        chunks.append(temp_chunk)
+                    temp_chunk = sent
+            
+            if temp_chunk:
+                chunks.append(temp_chunk)
+        
+        # Normal paragraph
         else:
-            if current_chunk:
-                current_chunk += "\n" + line
+            if len(current_chunk) + len(para) + 2 <= max_length:
+                if current_chunk:
+                    current_chunk += "\n\n" + para
+                else:
+                    current_chunk = para
             else:
-                current_chunk = line
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = para
     
     # Add the last chunk
     if current_chunk:
-        chunks.append(current_chunk.strip())
+        chunks.append(current_chunk)
+    
+    # If no chunks were created (fallback), split by character
+    if not chunks:
+        for i in range(0, len(text), max_length):
+            chunks.append(text[i:i+max_length])
     
     return chunks
 
-def create_message(cleaned_text, intro, link):
-    """Create formatted message with intro and link"""
+def create_full_message(cleaned_text):
+    """Create the full message with intro and link"""
+    intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
+    
     if cleaned_text:
-        return f"{cleaned_text}\n\n{intro}\n\n{link}\n{link}\n{link}\nሰላም ለእናንተ!"
+        return f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
     else:
-        return f"{intro}\n\n{link}\n{link}\n{link}\nሰላም ለእናንተ!"
+        return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+
+async def send_long_message(channel, message, reply_to=None):
+    """
+    Send a long message by splitting it into parts
+    """
+    # Split the message
+    chunks = split_message_advanced(message)
+    
+    if not chunks:
+        return
+    
+    print(f"📝 Message split into {len(chunks)} parts")
+    
+    # Send first part
+    first_message = await client.send_message(
+        channel, 
+        chunks[0],
+        reply_to=reply_to
+    )
+    print(f"📤 Part 1/{len(chunks)} sent")
+    
+    # Send remaining parts as replies to the first message
+    for i, chunk in enumerate(chunks[1:], start=2):
+        try:
+            await client.send_message(
+                channel,
+                chunk,
+                reply_to=first_message.id
+            )
+            print(f"📤 Part {i}/{len(chunks)} sent")
+            
+            # Small delay to avoid rate limiting
+            await asyncio.sleep(0.3)
+            
+        except Exception as e:
+            print(f"❌ Error sending part {i}: {e}")
+            # Try without reply if reply fails
+            await client.send_message(channel, chunk)
+            print(f"📤 Part {i}/{len(chunks)} sent (without reply)")
+            await asyncio.sleep(0.3)
+    
+    return len(chunks)
 
 @client.on(events.NewMessage)
 async def handler(event):
@@ -96,6 +179,7 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
         
+        # Check if already forwarded
         msg_id = f"{chat.id}_{event.id}"
         if msg_id in forwarded:
             return
@@ -105,53 +189,62 @@ async def handler(event):
             forwarded.clear()
         
         print(f"\n📨 From @{chat.username}")
+        print(f"📊 Message length: {len(event.raw_text or '')} characters")
         
+        # Get and clean the text
         original = event.raw_text or ""
         cleaned = clean_text(original)
         
-        intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
+        # Create the full message with intro and link
+        full_message = create_full_message(cleaned)
         
-        # Create the full message
-        full_message = create_message(cleaned, intro, your_link)
-        
-        # Split if too long
-        message_chunks = split_long_message(full_message)
-        
-        # Send the first chunk with media (if media exists)
+        # Check if media exists
         if event.message.media:
-            # Send media with first chunk as caption
-            await client.send_file(
-                target_channel, 
-                event.message.media, 
-                caption=message_chunks[0] if message_chunks else ""
-            )
-            print("📸 Media sent with first part")
+            print("📎 Media detected")
             
-            # Send remaining chunks as text messages
-            for chunk in message_chunks[1:]:
-                await client.send_message(target_channel, chunk)
-                print(f"📤 Text part {message_chunks.index(chunk)+1} sent")
-                # Small delay to avoid rate limiting
-                await asyncio.sleep(0.5)
+            # If message is short, send with caption
+            if len(full_message) <= 4096:
+                await client.send_file(
+                    target_channel, 
+                    event.message.media, 
+                    caption=full_message
+                )
+                print("📸 Media sent with caption")
+            else:
+                # Long message with media
+                # Send media with first part as caption
+                chunks = split_message_advanced(full_message)
+                
+                await client.send_file(
+                    target_channel, 
+                    event.message.media, 
+                    caption=chunks[0] if chunks else ""
+                )
+                print(f"📸 Media sent with part 1/{len(chunks)}")
+                
+                # Send remaining parts
+                for i, chunk in enumerate(chunks[1:], start=2):
+                    await client.send_message(target_channel, chunk)
+                    print(f"📤 Text part {i}/{len(chunks)} sent")
+                    await asyncio.sleep(0.3)
         else:
-            # No media - send all chunks as text
-            for i, chunk in enumerate(message_chunks):
-                await client.send_message(target_channel, chunk)
-                print(f"📤 Part {i+1}/{len(message_chunks)} sent")
-                # Small delay between messages
-                await asyncio.sleep(0.5)
-        
-        print(f"✅ Done! ({len(message_chunks)} parts)")
+            # Text only message
+            parts_sent = await send_long_message(target_channel, full_message)
+            print(f"✅ Done! Sent {parts_sent} parts")
         
     except Exception as e:
         print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
 
 async def main():
     print("\n🔌 Connecting to Telegram...")
     await client.start()
     me = await client.get_me()
     print(f"✅ Connected as: @{me.username}")
-    print("🤖 Bot running...\n")
+    print("🤖 Bot running...")
+    print("📏 Max message size: 4096 characters per part")
+    print("📚 Long messages will be split automatically\n")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
