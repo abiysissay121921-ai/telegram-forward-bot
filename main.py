@@ -55,6 +55,40 @@ def clean_text(text):
     text = re.sub(r'\n\s*\n', '\n\n', text)
     return text.strip()
 
+def split_long_message(text, max_length=4096):
+    """Split long message into chunks of max_length"""
+    if len(text) <= max_length:
+        return [text]
+    
+    chunks = []
+    lines = text.split('\n')
+    current_chunk = ""
+    
+    for line in lines:
+        # If adding this line exceeds limit, save current chunk and start new one
+        if len(current_chunk) + len(line) + 1 > max_length:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line
+        else:
+            if current_chunk:
+                current_chunk += "\n" + line
+            else:
+                current_chunk = line
+    
+    # Add the last chunk
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
+def create_message(cleaned_text, intro, link):
+    """Create formatted message with intro and link"""
+    if cleaned_text:
+        return f"{cleaned_text}\n\n{intro}\n\n{link}\n{link}\n{link}\nሰላም ለእናንተ!"
+    else:
+        return f"{intro}\n\n{link}\n{link}\n{link}\nሰላም ለእናንተ!"
+
 @client.on(events.NewMessage)
 async def handler(event):
     try:
@@ -77,21 +111,37 @@ async def handler(event):
         
         intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
         
-        if cleaned:
-            msg = f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-        else:
-            msg = f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+        # Create the full message
+        full_message = create_message(cleaned, intro, your_link)
         
-        if len(msg) > 4096:
-            msg = msg[:4090] + "..."
+        # Split if too long
+        message_chunks = split_long_message(full_message)
         
+        # Send the first chunk with media (if media exists)
         if event.message.media:
-            await client.send_file(target_channel, event.message.media, caption=msg)
-            print("📸 Media sent")
+            # Send media with first chunk as caption
+            await client.send_file(
+                target_channel, 
+                event.message.media, 
+                caption=message_chunks[0] if message_chunks else ""
+            )
+            print("📸 Media sent with first part")
+            
+            # Send remaining chunks as text messages
+            for chunk in message_chunks[1:]:
+                await client.send_message(target_channel, chunk)
+                print(f"📤 Text part {message_chunks.index(chunk)+1} sent")
+                # Small delay to avoid rate limiting
+                await asyncio.sleep(0.5)
         else:
-            await client.send_message(target_channel, msg)
-            print("📤 Text sent")
-        print("✅ Done!")
+            # No media - send all chunks as text
+            for i, chunk in enumerate(message_chunks):
+                await client.send_message(target_channel, chunk)
+                print(f"📤 Part {i+1}/{len(message_chunks)} sent")
+                # Small delay between messages
+                await asyncio.sleep(0.5)
+        
+        print(f"✅ Done! ({len(message_chunks)} parts)")
         
     except Exception as e:
         print(f"❌ Error: {e}")
