@@ -23,8 +23,8 @@ source_channels = [
     "seledadotio",
 ]
 
-target_channel = "NewsWith_Abiy"
-your_link = "https://t.me/NewsWith_Abiy"
+target_channel = "EBC_News_Official"
+your_link = "https://t.me/EBC_News_Official"
 
 print(f"\n📡 Monitoring {len(source_channels)} channels:")
 for channel in source_channels:
