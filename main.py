@@ -15,12 +15,9 @@ source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
     "NatnaelMekonnen21",
-    "tikvahethiopia",
-    "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
     "zena24now",
-    "atc_news",
     "seledadotio",
 ]
 
