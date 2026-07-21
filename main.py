@@ -2,7 +2,6 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
-import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT - LONG MESSAGE FIX")
@@ -77,14 +76,14 @@ def split_message_advanced(text, max_length=4000):
                 chunks.append(current_chunk)
                 current_chunk = ""
             
-            # Split long paragraph by sentences
-            sentences = para.replace('!', '.\n').replace('?', '.\n').split('. ')
+            # Split long paragraph by sentences using regex
+            sentences = re.split(r'(?<=[.!?])\s+', para)
             temp_chunk = ""
             
             for sent in sentences:
                 if len(temp_chunk) + len(sent) + 2 <= max_length:
                     if temp_chunk:
-                        temp_chunk += ". " + sent
+                        temp_chunk += " " + sent
                     else:
                         temp_chunk = sent
                 else:
@@ -143,7 +142,8 @@ async def send_long_message(channel, message, reply_to=None):
     first_message = await client.send_message(
         channel, 
         chunks[0],
-        reply_to=reply_to
+        reply_to=reply_to,
+        parse_mode=None
     )
     print(f"📤 Part 1/{len(chunks)} sent")
     
@@ -153,7 +153,8 @@ async def send_long_message(channel, message, reply_to=None):
             await client.send_message(
                 channel,
                 chunk,
-                reply_to=first_message.id
+                reply_to=first_message.id,
+                parse_mode=None
             )
             print(f"📤 Part {i}/{len(chunks)} sent")
             
@@ -163,7 +164,7 @@ async def send_long_message(channel, message, reply_to=None):
         except Exception as e:
             print(f"❌ Error sending part {i}: {e}")
             # Try without reply if reply fails
-            await client.send_message(channel, chunk)
+            await client.send_message(channel, chunk, parse_mode=None)
             print(f"📤 Part {i}/{len(chunks)} sent (without reply)")
             await asyncio.sleep(0.3)
     
@@ -204,7 +205,8 @@ async def handler(event):
                 await client.send_file(
                     target_channel, 
                     event.message.media, 
-                    caption=full_message
+                    caption=full_message,
+                    parse_mode=None
                 )
                 print("📸 Media sent with caption")
             else:
@@ -215,13 +217,14 @@ async def handler(event):
                 await client.send_file(
                     target_channel, 
                     event.message.media, 
-                    caption=chunks[0] if chunks else ""
+                    caption=chunks[0] if chunks else "",
+                    parse_mode=None
                 )
                 print(f"📸 Media sent with part 1/{len(chunks)}")
                 
                 # Send remaining parts
                 for i, chunk in enumerate(chunks[1:], start=2):
-                    await client.send_message(target_channel, chunk)
+                    await client.send_message(target_channel, chunk, parse_mode=None)
                     print(f"📤 Text part {i}/{len(chunks)} sent")
                     await asyncio.sleep(0.3)
         else:
