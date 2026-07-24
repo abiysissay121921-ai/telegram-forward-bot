@@ -1,6 +1,6 @@
 import asyncio
 from telethon import TelegramClient, events
-from telethon.errors.rpcerrorlist import AuthKeyDuplicatedError
+from telethon.errors.rpcerrorlist import AuthKeyDuplicatedError  # correct import
 import os
 import re
 import sys
@@ -10,7 +10,7 @@ print("🚀 TELEGRAM FORWARD BOT - FINAL FIX")
 print("=" * 50)
 
 API_ID = 37303512
-API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
+API_HASH = "dff48ddff61546b05d1d507a6c508ee8"   # correct hash
 
 # --- EDIT THESE LINES IF NEEDED ---
 source_channels = [
@@ -34,17 +34,14 @@ print(f"🎯 Forwarding to: @{target_channel}")
 SESSION_FILE = "mysession.session"
 
 def clean_session():
-    """Remove old session files to force a fresh login."""
     if os.path.exists(SESSION_FILE):
         os.remove(SESSION_FILE)
     journal = SESSION_FILE + "-journal"
     if os.path.exists(journal):
         os.remove(journal)
 
-# Initialize client
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# Set to avoid duplicate forwards
 forwarded = set()
 
 def clean_text(text):
@@ -60,7 +57,6 @@ def clean_text(text):
     return text.strip()
 
 def split_message_advanced(text, max_length=4000):
-    """Split text into chunks of at most `max_length` chars."""
     if len(text) <= max_length:
         return [text]
     chunks = []
@@ -104,15 +100,12 @@ def create_full_message(cleaned_text):
         return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
 
 async def send_long_message(channel, message, reply_to=None):
-    """Send a long message split into multiple Telegram messages."""
     chunks = split_message_advanced(message)
     if not chunks:
         return 0
     print(f"📝 Split into {len(chunks)} parts")
-    # Send first part
     first = await client.send_message(channel, chunks[0], reply_to=reply_to, parse_mode=None)
     print(f"📤 Part 1/{len(chunks)} sent")
-    # Send rest as replies to the first
     for i, chunk in enumerate(chunks[1:], start=2):
         try:
             await client.send_message(channel, chunk, reply_to=first.id, parse_mode=None)
@@ -146,7 +139,6 @@ async def handler(event):
 
         if event.message.media:
             print("📎 Media detected")
-            # Send media with a VERY SHORT caption to avoid 1024‑char limit
             await client.send_file(
                 target_channel,
                 event.message.media,
@@ -154,11 +146,9 @@ async def handler(event):
                 parse_mode=None
             )
             print("📸 Media sent (caption: 📎)")
-            # Now send the full text as separate messages
             parts = await send_long_message(target_channel, full_message)
             print(f"✅ Done! Sent {parts} text parts")
         else:
-            # Text‑only message
             parts = await send_long_message(target_channel, full_message)
             print(f"✅ Done! Sent {parts} parts")
     except Exception as e:
@@ -174,7 +164,6 @@ async def main():
         print("❌ AuthKeyDuplicatedError – session used elsewhere or corrupted.")
         print("🔄 Deleting session file and restarting...")
         clean_session()
-        # Re‑create client with new session
         global client
         client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
         await client.start()
