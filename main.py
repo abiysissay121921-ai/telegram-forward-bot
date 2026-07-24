@@ -6,12 +6,13 @@ import re
 import sys
 
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT - LONG MESSAGE FIX")
+print("🚀 TELEGRAM FORWARD BOT - FINAL FIX")
 print("=" * 50)
 
 API_ID = 37303512
 API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
+# --- EDIT THESE LINES IF NEEDED ---
 source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
@@ -21,26 +22,29 @@ source_channels = [
     "zena24now",
     "seledadotio",
 ]
-
-target_channel = "EBC_News_Official"          # Change this if needed
-your_link = "https://t.me/EBC_News_Official"  # Change this if needed
+target_channel = "EBC_News_Official"
+your_link = "https://t.me/EBC_News_Official"
+# ----------------------------------
 
 print(f"\n📡 Monitoring {len(source_channels)} channels:")
-for channel in source_channels:
-    print(f"   - @{channel}")
+for ch in source_channels:
+    print(f"   - @{ch}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
 SESSION_FILE = "mysession.session"
 
 def clean_session():
+    """Remove old session files to force a fresh login."""
     if os.path.exists(SESSION_FILE):
         os.remove(SESSION_FILE)
     journal = SESSION_FILE + "-journal"
     if os.path.exists(journal):
         os.remove(journal)
 
+# Initialize client
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
+# Set to avoid duplicate forwards
 forwarded = set()
 
 def clean_text(text):
@@ -56,42 +60,37 @@ def clean_text(text):
     return text.strip()
 
 def split_message_advanced(text, max_length=4000):
+    """Split text into chunks of at most `max_length` chars."""
     if len(text) <= max_length:
         return [text]
     chunks = []
     paragraphs = text.split('\n\n')
-    current_chunk = ""
+    current = ""
     for para in paragraphs:
         if len(para) > max_length:
-            if current_chunk:
-                chunks.append(current_chunk)
-                current_chunk = ""
+            if current:
+                chunks.append(current)
+                current = ""
             sentences = re.split(r'(?<=[.!?])\s+', para)
-            temp_chunk = ""
+            temp = ""
             for sent in sentences:
-                if len(temp_chunk) + len(sent) + 2 <= max_length:
-                    if temp_chunk:
-                        temp_chunk += " " + sent
-                    else:
-                        temp_chunk = sent
+                if len(temp) + len(sent) + 2 <= max_length:
+                    temp = temp + " " + sent if temp else sent
                 else:
-                    if temp_chunk:
-                        chunks.append(temp_chunk)
-                    temp_chunk = sent
-            if temp_chunk:
-                chunks.append(temp_chunk)
+                    if temp:
+                        chunks.append(temp)
+                    temp = sent
+            if temp:
+                chunks.append(temp)
         else:
-            if len(current_chunk) + len(para) + 2 <= max_length:
-                if current_chunk:
-                    current_chunk += "\n\n" + para
-                else:
-                    current_chunk = para
+            if len(current) + len(para) + 2 <= max_length:
+                current = current + "\n\n" + para if current else para
             else:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = para
-    if current_chunk:
-        chunks.append(current_chunk)
+                if current:
+                    chunks.append(current)
+                current = para
+    if current:
+        chunks.append(current)
     if not chunks:
         for i in range(0, len(text), max_length):
             chunks.append(text[i:i+max_length])
@@ -105,157 +104,23 @@ def create_full_message(cleaned_text):
         return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
 
 async def send_long_message(channel, message, reply_to=None):
+    """Send a long message split into multiple Telegram messages."""
     chunks = split_message_advanced(message)
     if not chunks:
-        return
-    print(f"📝 Message split into {len(chunks)} parts")
-    first_message = await client.send_message(
-        channel,
-        chunks[0],
-        reply_to=reply_to,
-        parse_mode=None
-    )
+        return 0
+    print(f"📝 Split into {len(chunks)} parts")
+    # Send first part
+    first = await client.send_message(channel, chunks[0], reply_to=reply_to, parse_mode=None)
     print(f"📤 Part 1/{len(chunks)} sent")
+    # Send rest as replies to the first
     for i, chunk in enumerate(chunks[1:], start=2):
         try:
-            await client.send_message(
-                channel,
-                chunk,
-                reply_to=first_message.id,
-                parse_mode=None
-            )
- import asyncio
-from telethon import TelegramClient, events
-from telethon.errors.rpcerrorlist import AuthKeyDuplicatedError
-import os
-import re
-import sys
-
-print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT - LONG MESSAGE FIX")
-print("=" * 50)
-
-API_ID = 37303512
-API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
-
-source_channels = [
-    "ayuzehabeshanews",
-    "Addis_News",
-    "NatnaelMekonnen21",
-    "TikvahUniversity",
-    "abiyselol",
-    "zena24now",
-    "seledadotio",
-]
-
-target_channel = "EBC_News_Official"          # Change this if needed
-your_link = "https://t.me/EBC_News_Official"  # Change this if needed
-
-print(f"\n📡 Monitoring {len(source_channels)} channels:")
-for channel in source_channels:
-    print(f"   - @{channel}")
-print(f"🎯 Forwarding to: @{target_channel}")
-
-SESSION_FILE = "mysession.session"
-
-def clean_session():
-    if os.path.exists(SESSION_FILE):
-        os.remove(SESSION_FILE)
-    journal = SESSION_FILE + "-journal"
-    if os.path.exists(journal):
-        os.remove(journal)
-
-client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-
-forwarded = set()
-
-def clean_text(text):
-    if not text:
-        return ""
-    for ch in source_channels:
-        text = re.sub(rf'@{ch}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf'https?://t\.me/{ch}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf't\.me/{ch}\b', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'https?://t\.me/\S+', '', text)
-    text = re.sub(r't\.me/\S+', '', text)
-    text = re.sub(r'\n\s*\n', '\n\n', text)
-    return text.strip()
-
-def split_message_advanced(text, max_length=4000):
-    if len(text) <= max_length:
-        return [text]
-    chunks = []
-    paragraphs = text.split('\n\n')
-    current_chunk = ""
-    for para in paragraphs:
-        if len(para) > max_length:
-            if current_chunk:
-                chunks.append(current_chunk)
-                current_chunk = ""
-            sentences = re.split(r'(?<=[.!?])\s+', para)
-            temp_chunk = ""
-            for sent in sentences:
-                if len(temp_chunk) + len(sent) + 2 <= max_length:
-                    if temp_chunk:
-                        temp_chunk += " " + sent
-                    else:
-                        temp_chunk = sent
-                else:
-                    if temp_chunk:
-                        chunks.append(temp_chunk)
-                    temp_chunk = sent
-            if temp_chunk:
-                chunks.append(temp_chunk)
-        else:
-            if len(current_chunk) + len(para) + 2 <= max_length:
-                if current_chunk:
-                    current_chunk += "\n\n" + para
-                else:
-                    current_chunk = para
-            else:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = para
-    if current_chunk:
-        chunks.append(current_chunk)
-    if not chunks:
-        for i in range(0, len(text), max_length):
-            chunks.append(text[i:i+max_length])
-    return chunks
-
-def create_full_message(cleaned_text):
-    intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
-    if cleaned_text:
-        return f"{cleaned_text}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-    else:
-        return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-
-async def send_long_message(channel, message, reply_to=None):
-    chunks = split_message_advanced(message)
-    if not chunks:
-        return
-    print(f"📝 Message split into {len(chunks)} parts")
-    first_message = await client.send_message(
-        channel,
-        chunks[0],
-        reply_to=reply_to,
-        parse_mode=None
-    )
-    print(f"📤 Part 1/{len(chunks)} sent")
-    for i, chunk in enumerate(chunks[1:], start=2):
-        try:
-            await client.send_message(
-                channel,
-                chunk,
-                reply_to=first_message.id,
-                parse_mode=None
-            )
+            await client.send_message(channel, chunk, reply_to=first.id, parse_mode=None)
             print(f"📤 Part {i}/{len(chunks)} sent")
             await asyncio.sleep(0.3)
         except Exception as e:
-            print(f"❌ Error sending part {i}: {e}")
+            print(f"❌ Error sending part {i}: {e} – sending without reply")
             await client.send_message(channel, chunk, parse_mode=None)
-            print(f"📤 Part {i}/{len(chunks)} sent (without reply)")
             await asyncio.sleep(0.3)
     return len(chunks)
 
@@ -273,7 +138,7 @@ async def handler(event):
             forwarded.clear()
 
         print(f"\n📨 From @{chat.username}")
-        print(f"📊 Message length: {len(event.raw_text or '')} characters")
+        print(f"📊 Message length: {len(event.raw_text or '')} chars")
 
         original = event.raw_text or ""
         cleaned = clean_text(original)
@@ -281,21 +146,21 @@ async def handler(event):
 
         if event.message.media:
             print("📎 Media detected")
-            # Send media WITHOUT caption (or with a very short one)
+            # Send media with a VERY SHORT caption to avoid 1024‑char limit
             await client.send_file(
                 target_channel,
                 event.message.media,
-                caption="📎",          # short caption to avoid limit
+                caption="📎",
                 parse_mode=None
             )
             print("📸 Media sent (caption: 📎)")
-            # Then send the full text as separate messages
-            parts_sent = await send_long_message(target_channel, full_message)
-            print(f"✅ Done! Sent {parts_sent} text parts")
+            # Now send the full text as separate messages
+            parts = await send_long_message(target_channel, full_message)
+            print(f"✅ Done! Sent {parts} text parts")
         else:
-            # Text only
-            parts_sent = await send_long_message(target_channel, full_message)
-            print(f"✅ Done! Sent {parts_sent} parts")
+            # Text‑only message
+            parts = await send_long_message(target_channel, full_message)
+            print(f"✅ Done! Sent {parts} parts")
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
@@ -306,21 +171,22 @@ async def main():
     try:
         await client.start()
     except AuthKeyDuplicatedError:
-        print("❌ AuthKeyDuplicatedError – session is used elsewhere or corrupted.")
-        print("🔄 Removing session file and restarting...")
+        print("❌ AuthKeyDuplicatedError – session used elsewhere or corrupted.")
+        print("🔄 Deleting session file and restarting...")
         clean_session()
+        # Re‑create client with new session
         global client
         client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
         await client.start()
         print("✅ New session created successfully.")
     except Exception as e:
-        print(f"❌ Unexpected error during start: {e}")
+        print(f"❌ Unexpected error: {e}")
         sys.exit(1)
 
     me = await client.get_me()
     print(f"✅ Connected as: @{me.username}")
     print("🤖 Bot running...")
-    print("📏 Max message size: 4096 characters per part")
+    print("📏 Max message size: 4096 chars per part")
     print("📚 Long messages will be split automatically\n")
     await client.run_until_disconnected()
 
