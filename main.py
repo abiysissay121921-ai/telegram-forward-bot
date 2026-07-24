@@ -139,6 +139,7 @@ async def handler(event):
 
         if event.message.media:
             print("📎 Media detected")
+            # Send media with a VERY SHORT caption to avoid 1024‑char limit
             await client.send_file(
                 target_channel,
                 event.message.media,
@@ -146,9 +147,11 @@ async def handler(event):
                 parse_mode=None
             )
             print("📸 Media sent (caption: 📎)")
+            # Now send the full text as separate messages
             parts = await send_long_message(target_channel, full_message)
             print(f"✅ Done! Sent {parts} text parts")
         else:
+            # Text‑only message
             parts = await send_long_message(target_channel, full_message)
             print(f"✅ Done! Sent {parts} parts")
     except Exception as e:
