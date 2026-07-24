@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 COPY main.py .
-COPY mysession.session .   # <-- correct spelling
+COPY mysession.session .    # <-- MUST be exactly "mysession.session"
 
 RUN pip install --no-cache-dir telethon
 
