@@ -1,10 +1,12 @@
 import asyncio
 from telethon import TelegramClient, events
+from telethon.errors.rpcerrorlist import AuthKeyDuplicatedError
 import os
 import re
+import sys
 
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT - SIMPLE FIX")
+print("🚀 TELEGRAM FORWARD BOT - LONG MESSAGE FIX")
 print("=" * 50)
 
 API_ID = 37303512
@@ -14,27 +16,36 @@ source_channels = [
     "ayuzehabeshanews",
     "Addis_News",
     "NatnaelMekonnen21",
+    "tikvahethiopia",
+    "eliasmeseret",
     "TikvahUniversity",
     "abiyselol",
     "zena24now",
+    "atc_news",
     "seledadotio",
 ]
-target_channel = "EBC_News_Official"
-your_link = "https://t.me/EBC_News_Official"
+
+target_channel = "NewsWith_Abiy"
+your_link = "https://t.me/NewsWith_Abiy"
 
 print(f"\n📡 Monitoring {len(source_channels)} channels:")
-for ch in source_channels:
-    print(f"   - @{ch}")
+for channel in source_channels:
+    print(f"   - @{channel}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
 SESSION_FILE = "mysession.session"
-if not os.path.exists(SESSION_FILE):
-    print(f"\n❌ Session file not found: {SESSION_FILE}")
-    exit(1)
 
-print(f"\n✅ Session file: {SESSION_FILE}")
+# Remove corrupted session if it exists
+def clean_session():
+    if os.path.exists(SESSION_FILE):
+        os.remove(SESSION_FILE)
+    journal = SESSION_FILE + "-journal"
+    if os.path.exists(journal):
+        os.remove(journal)
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
+
+# Store forwarded message IDs to avoid duplicates
 forwarded = set()
 
 def clean_text(text):
@@ -54,32 +65,38 @@ def split_message_advanced(text, max_length=4000):
         return [text]
     chunks = []
     paragraphs = text.split('\n\n')
-    current = ""
+    current_chunk = ""
     for para in paragraphs:
         if len(para) > max_length:
-            if current:
-                chunks.append(current)
-                current = ""
+            if current_chunk:
+                chunks.append(current_chunk)
+                current_chunk = ""
             sentences = re.split(r'(?<=[.!?])\s+', para)
-            temp = ""
+            temp_chunk = ""
             for sent in sentences:
-                if len(temp) + len(sent) + 2 <= max_length:
-                    temp = temp + " " + sent if temp else sent
+                if len(temp_chunk) + len(sent) + 2 <= max_length:
+                    if temp_chunk:
+                        temp_chunk += " " + sent
+                    else:
+                        temp_chunk = sent
                 else:
-                    if temp:
-                        chunks.append(temp)
-                    temp = sent
-            if temp:
-                chunks.append(temp)
+                    if temp_chunk:
+                        chunks.append(temp_chunk)
+                    temp_chunk = sent
+            if temp_chunk:
+                chunks.append(temp_chunk)
         else:
-            if len(current) + len(para) + 2 <= max_length:
-                current = current + "\n\n" + para if current else para
+            if len(current_chunk) + len(para) + 2 <= max_length:
+                if current_chunk:
+                    current_chunk += "\n\n" + para
+                else:
+                    current_chunk = para
             else:
-                if current:
-                    chunks.append(current)
-                current = para
-    if current:
-        chunks.append(current)
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = para
+    if current_chunk:
+        chunks.append(current_chunk)
     if not chunks:
         for i in range(0, len(text), max_length):
             chunks.append(text[i:i+max_length])
@@ -95,18 +112,29 @@ def create_full_message(cleaned_text):
 async def send_long_message(channel, message, reply_to=None):
     chunks = split_message_advanced(message)
     if not chunks:
-        return 0
-    print(f"📝 Split into {len(chunks)} parts")
-    first = await client.send_message(channel, chunks[0], reply_to=reply_to, parse_mode=None)
+        return
+    print(f"📝 Message split into {len(chunks)} parts")
+    first_message = await client.send_message(
+        channel,
+        chunks[0],
+        reply_to=reply_to,
+        parse_mode=None
+    )
     print(f"📤 Part 1/{len(chunks)} sent")
     for i, chunk in enumerate(chunks[1:], start=2):
         try:
-            await client.send_message(channel, chunk, reply_to=first.id, parse_mode=None)
+            await client.send_message(
+                channel,
+                chunk,
+                reply_to=first_message.id,
+                parse_mode=None
+            )
             print(f"📤 Part {i}/{len(chunks)} sent")
             await asyncio.sleep(0.3)
         except Exception as e:
-            print(f"❌ Error sending part {i}: {e} – sending without reply")
+            print(f"❌ Error sending part {i}: {e}")
             await client.send_message(channel, chunk, parse_mode=None)
+            print(f"📤 Part {i}/{len(chunks)} sent (without reply)")
             await asyncio.sleep(0.3)
     return len(chunks)
 
@@ -124,7 +152,7 @@ async def handler(event):
             forwarded.clear()
 
         print(f"\n📨 From @{chat.username}")
-        print(f"📊 Message length: {len(event.raw_text or '')} chars")
+        print(f"📊 Message length: {len(event.raw_text or '')} characters")
 
         original = event.raw_text or ""
         cleaned = clean_text(original)
@@ -132,13 +160,30 @@ async def handler(event):
 
         if event.message.media:
             print("📎 Media detected")
-            await client.send_file(target_channel, event.message.media, caption="📎", parse_mode=None)
-            print("📸 Media sent (caption: 📎)")
-            parts = await send_long_message(target_channel, full_message)
-            print(f"✅ Done! Sent {parts} text parts")
+            if len(full_message) <= 4096:
+                await client.send_file(
+                    target_channel,
+                    event.message.media,
+                    caption=full_message,
+                    parse_mode=None
+                )
+                print("📸 Media sent with caption")
+            else:
+                chunks = split_message_advanced(full_message)
+                await client.send_file(
+                    target_channel,
+                    event.message.media,
+                    caption=chunks[0] if chunks else "",
+                    parse_mode=None
+                )
+                print(f"📸 Media sent with part 1/{len(chunks)}")
+                for i, chunk in enumerate(chunks[1:], start=2):
+                    await client.send_message(target_channel, chunk, parse_mode=None)
+                    print(f"📤 Text part {i}/{len(chunks)} sent")
+                    await asyncio.sleep(0.3)
         else:
-            parts = await send_long_message(target_channel, full_message)
-            print(f"✅ Done! Sent {parts} parts")
+            parts_sent = await send_long_message(target_channel, full_message)
+            print(f"✅ Done! Sent {parts_sent} parts")
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
@@ -146,10 +191,26 @@ async def handler(event):
 
 async def main():
     print("\n🔌 Connecting to Telegram...")
-    await client.start()
+    try:
+        await client.start()
+    except AuthKeyDuplicatedError:
+        print("❌ AuthKeyDuplicatedError – session is used elsewhere or corrupted.")
+        print("🔄 Removing session file and restarting...")
+        clean_session()
+        # Recreate client with new session
+        global client
+        client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
+        await client.start()
+        print("✅ New session created successfully.")
+    except Exception as e:
+        print(f"❌ Unexpected error during start: {e}")
+        sys.exit(1)
+
     me = await client.get_me()
     print(f"✅ Connected as: @{me.username}")
-    print("🤖 Bot running...\n")
+    print("🤖 Bot running...")
+    print("📏 Max message size: 4096 characters per part")
+    print("📚 Long messages will be split automatically\n")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
