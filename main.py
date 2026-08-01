@@ -12,7 +12,6 @@ API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
 
 source_channels = [
     "ayuzehabeshanews",
-    "Addis_News",
     "NatnaelMekonnen21",
     "TikvahUniversity",
     "abiyselol",
