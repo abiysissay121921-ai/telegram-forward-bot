@@ -4,7 +4,7 @@ import os
 import re
 
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT (Single Photo per Album)")
+print("🚀 TELEGRAM FORWARD BOT (One Media per Album)")
 print("=" * 50)
 
 API_ID = 37303512
@@ -35,11 +35,12 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-processed = set()                # For single messages and group keys
+processed = set()                # For single messages and album group IDs
 pending_groups = {}              # grouped_id -> {"messages": [], "task": None}
 GROUP_WAIT = 6                   # seconds to wait for all album parts
 
 def clean_text(text):
+    """Remove source channel names and links from captions/text."""
     if not text:
         return ""
     for ch in source_channels:
@@ -52,6 +53,7 @@ def clean_text(text):
     return text.strip()
 
 def split_message(text, max_len=4000):
+    """Split long text into chunks (for text‑only messages)."""
     if len(text) <= max_len:
         return [text]
     chunks = []
@@ -60,6 +62,7 @@ def split_message(text, max_len=4000):
     return chunks
 
 def create_full_message(cleaned):
+    """Add intro, links, and footer to the cleaned text."""
     intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
     if cleaned:
         return f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
@@ -82,10 +85,11 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ---------- ALBUM PROCESSING (SEND ONLY FIRST MEDIA) ----------
+# ---------- ALBUM PROCESSING (send only first media) ----------
 async def process_album(grouped_id, messages):
     """Send only the first media from the album with the combined caption."""
     try:
+        # Remove from pending
         if grouped_id in pending_groups:
             del pending_groups[grouped_id]
 
@@ -121,7 +125,8 @@ async def process_album(grouped_id, messages):
             caption=full,
             parse_mode=None
         )
-        print(f"✅ Album → sent first media (1 of {len([m for m in messages if m.media])}) with caption length {len(full)}")
+        total_media = len([m for m in messages if m.media])
+        print(f"✅ Album → sent first media (1 of {total_media}) with caption length {len(full)}")
 
     except Exception as e:
         print(f"❌ Error processing album: {e}")
@@ -137,19 +142,21 @@ async def buffer_album(event):
     if event.message not in pending_groups[grouped_id]["messages"]:
         pending_groups[grouped_id]["messages"].append(event.message)
 
+    # Cancel existing timer
     if pending_groups[grouped_id]["task"]:
         pending_groups[grouped_id]["task"].cancel()
 
+    # Start new timer
     async def delayed():
         try:
             await asyncio.sleep(GROUP_WAIT)
             await process_album(grouped_id, pending_groups[grouped_id]["messages"])
         except asyncio.CancelledError:
-            pass
+            pass  # Timer was reset
     task = asyncio.create_task(delayed())
     pending_groups[grouped_id]["task"] = task
 
-# ---------- ALBUM EVENT FALLBACK (also send only first) ----------
+# ---------- FALLBACK ALBUM EVENT (also sends only first media) ----------
 @client.on(events.Album)
 async def album_fallback(event):
     try:
@@ -213,6 +220,7 @@ async def handler(event):
 
         grouped_id = event.message.grouped_id
 
+        # If it's part of an album, buffer it
         if grouped_id is not None:
             print(f"📨 Album part from @{chat.username} (grouped_id={grouped_id}) – buffering")
             await buffer_album(event)
@@ -233,6 +241,7 @@ async def handler(event):
         full = create_full_message(cleaned)
 
         if event.message.media:
+            # Single media – send with full caption, NO extra text
             print("📎 Single media – sending with caption")
             await client.send_file(
                 target_channel,
@@ -242,6 +251,7 @@ async def handler(event):
             )
             print("✅ Single media sent with caption")
         else:
+            # Text‑only – split if needed
             parts = await send_long(target_channel, full)
             print(f"✅ Done – {parts} parts sent")
 
