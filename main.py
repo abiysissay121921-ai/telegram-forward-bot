@@ -34,7 +34,7 @@ if not os.path.exists(SESSION_FILE):
 print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-forwarded = set()
+forwarded = set()          # stores single‑message IDs and album grouped IDs
 
 def clean_text(text):
     if not text:
@@ -78,9 +78,71 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
+# ------------------------------------------------------------
+# NEW: Album (media group) handler
+# ------------------------------------------------------------
+@client.on(events.Album)
+async def album_handler(event):
+    try:
+        chat = await event.get_chat()
+        if not chat.username or chat.username not in source_channels:
+            return
+
+        grouped_id = event.grouped_id
+        if not grouped_id:
+            return   # should not happen for Album events
+
+        # Prevent duplicate processing of the same album
+        album_key = f"{chat.id}_group_{grouped_id}"
+        if album_key in forwarded:
+            return
+        forwarded.add(album_key)
+        if len(forwarded) > 1000:
+            forwarded.clear()
+
+        print(f"\n📸 Album from @{chat.username} (grouped_id={grouped_id})")
+
+        # Collect all media from the album messages
+        media_list = [msg.media for msg in event.messages if msg.media]
+        if not media_list:
+            return
+
+        # Find the first non‑empty caption from any message in the album
+        caption = ""
+        for msg in event.messages:
+            if msg.raw_text:
+                caption = msg.raw_text
+                break
+
+        cleaned = clean_text(caption)
+        full = create_full_message(cleaned)
+
+        # Send as an album with the combined caption
+        # The `album=True` parameter ensures the media are sent as a group.
+        await client.send_file(
+            target_channel,
+            media_list,
+            caption=full,
+            parse_mode=None,
+            album=True
+        )
+        print(f"✅ Album forwarded with {len(media_list)} media items")
+
+    except Exception as e:
+        print(f"❌ Error in album handler: {e}")
+        import traceback
+        traceback.print_exc()
+
+# ------------------------------------------------------------
+# Modified NewMessage handler – skip grouped messages
+# ------------------------------------------------------------
 @client.on(events.NewMessage)
 async def handler(event):
     try:
+        # Skip if this message is part of an album – the album handler will manage it
+        if event.message.grouped_id is not None:
+            return
+
         chat = await event.get_chat()
         if not chat.username or chat.username not in source_channels:
             return
