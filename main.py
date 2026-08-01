@@ -2,6 +2,7 @@ import asyncio
 from telethon import TelegramClient, events
 import os
 import re
+import time
 
 print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT (One Media per Album)")
@@ -35,9 +36,9 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-processed = set()            # single messages & album group IDs
-pending_groups = {}          # grouped_id -> {"messages": [], "task": None}
-GROUP_WAIT = 4               # seconds to wait for all album parts
+processed = set()          # for single messages and album groups
+buffer = {}                # chat_id -> {"messages": [], "last_time": 0, "task": None}
+BUFFER_WINDOW = 6          # seconds – any messages within this window are grouped
 
 def clean_text(text):
     if not text:
@@ -81,17 +82,17 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ---------- ALBUM BUFFERING (send only first media) ----------
-async def process_album(grouped_id):
-    """Send only the first media from the buffered album messages."""
-    data = pending_groups.pop(grouped_id, None)
+# ---------- BUFFER PROCESSING (send only first media) ----------
+async def process_buffer(chat_id):
+    """Send the first media from the buffered messages, ignore the rest."""
+    data = buffer.pop(chat_id, None)
     if not data:
         return
-    messages = data.get("messages", [])
+    messages = data["messages"]
     if not messages:
         return
 
-    # Find first media and collect all captions
+    # Find the first message with media and collect all captions
     first_media_msg = None
     caption_parts = []
     for msg in messages:
@@ -101,23 +102,22 @@ async def process_album(grouped_id):
             first_media_msg = msg
 
     if not first_media_msg:
-        print(f"⚠️ No media in album (grouped_id={grouped_id}), skipping.")
+        print(f"⚠️ No media in buffer for chat {chat_id}, skipping.")
         return
 
-    combined = "\n".join(caption_parts) if caption_parts else ""
-    cleaned = clean_text(combined)
-    full = create_full_message(cleaned)
-
-    # Mark as processed
-    chat_id = messages[0].chat_id
-    key = f"{chat_id}_group_{grouped_id}"
+    # Mark as processed (prevent duplicate)
+    key = f"{chat_id}_buffer"
     if key in processed:
         return
     processed.add(key)
     if len(processed) > 1000:
         processed.clear()
 
-    # Send the first media with the full caption
+    combined = "\n".join(caption_parts) if caption_parts else ""
+    cleaned = clean_text(combined)
+    full = create_full_message(cleaned)
+
+    # Send only the first media
     await client.send_file(
         target_channel,
         first_media_msg.media,
@@ -125,31 +125,7 @@ async def process_album(grouped_id):
         parse_mode=None
     )
     total_media = len([m for m in messages if m.media])
-    print(f"✅ Album: sent first media (1 of {total_media}) with caption length {len(full)}")
-
-async def buffer_album(event):
-    """Add message to buffer and reset the timer."""
-    grouped_id = event.message.grouped_id
-    if grouped_id not in pending_groups:
-        pending_groups[grouped_id] = {"messages": [], "task": None}
-
-    # Avoid duplicates
-    if event.message not in pending_groups[grouped_id]["messages"]:
-        pending_groups[grouped_id]["messages"].append(event.message)
-
-    # Cancel existing timer
-    if pending_groups[grouped_id]["task"]:
-        pending_groups[grouped_id]["task"].cancel()
-
-    # Start new timer
-    async def delayed():
-        try:
-            await asyncio.sleep(GROUP_WAIT)
-            await process_album(grouped_id)
-        except asyncio.CancelledError:
-            pass  # Timer reset
-    task = asyncio.create_task(delayed())
-    pending_groups[grouped_id]["task"] = task
+    print(f"✅ Buffer: sent first media (1 of {total_media}) with caption length {len(full)}")
 
 # ---------- MAIN NEW MESSAGE HANDLER ----------
 @client.on(events.NewMessage)
@@ -159,95 +135,41 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
 
-        grouped_id = event.message.grouped_id
+        # If this is a single (non‑grouped) message and no other messages are buffered,
+        # we might process it immediately. But we'll use a buffer for all messages
+        # to catch albums that might not have grouped_id.
 
-        # ---- It's an album part – buffer it ----
-        if grouped_id is not None:
-            print(f"📨 Album part from @{chat.username} (grouped_id={grouped_id}) – buffering")
-            await buffer_album(event)
-            return
+        chat_id = chat.id
 
-        # ---- Single (non‑grouped) message ----
-        msg_id = f"{chat.id}_{event.id}"
-        if msg_id in processed:
-            return
-        processed.add(msg_id)
-        if len(processed) > 1000:
-            processed.clear()
+        # Add message to buffer
+        if chat_id not in buffer:
+            buffer[chat_id] = {"messages": [], "last_time": 0, "task": None}
 
-        print(f"\n📨 From @{chat.username} (single message)")
+        # Avoid duplicates
+        if event.message not in buffer[chat_id]["messages"]:
+            buffer[chat_id]["messages"].append(event.message)
+        buffer[chat_id]["last_time"] = time.time()
 
-        original = event.raw_text or ""
-        cleaned = clean_text(original)
-        full = create_full_message(cleaned)
+        # Cancel existing timer
+        if buffer[chat_id]["task"]:
+            buffer[chat_id]["task"].cancel()
 
-        if event.message.media:
-            # Single media – send with caption, no extra text
-            print("📎 Single media – sending with caption")
-            await client.send_file(
-                target_channel,
-                event.message.media,
-                caption=full,
-                parse_mode=None
-            )
-            print("✅ Single media sent with caption")
-        else:
-            # Text‑only – split if needed
-            parts = await send_long(target_channel, full)
-            print(f"✅ Done – {parts} parts sent")
+        # Start a new timer that will fire after the window
+        async def delayed():
+            await asyncio.sleep(BUFFER_WINDOW)
+            # Only process if no new messages have arrived in the meantime
+            # The timer is only used to trigger, we check if enough time passed
+            await process_buffer(chat_id)
+
+        task = asyncio.create_task(delayed())
+        buffer[chat_id]["task"] = task
+
+        print(f"📨 Buffered message from @{chat.username} (now {len(buffer[chat_id]['messages'])} messages in buffer)")
 
     except Exception as e:
         print(f"❌ Error in handler: {e}")
         import traceback
         traceback.print_exc()
-
-# ---------- FALLBACK: if Album event fires (just in case) ----------
-@client.on(events.Album)
-async def album_fallback(event):
-    try:
-        chat = await event.get_chat()
-        if not chat.username or chat.username not in source_channels:
-            return
-        grouped_id = event.grouped_id
-        if not grouped_id:
-            return
-        # If already processed by buffer, skip
-        key = f"{chat.id}_group_{grouped_id}"
-        if key in processed:
-            return
-        # Cancel any pending buffer
-        if grouped_id in pending_groups:
-            if pending_groups[grouped_id]["task"]:
-                pending_groups[grouped_id]["task"].cancel()
-            pending_groups.pop(grouped_id, None)
-
-        print(f"📸 Album fallback from @{chat.username}")
-
-        first_media = None
-        caption_parts = []
-        for msg in event.messages:
-            if msg.raw_text:
-                caption_parts.append(msg.raw_text)
-            if msg.media and first_media is None:
-                first_media = msg.media
-
-        if not first_media:
-            return
-
-        combined = "\n".join(caption_parts) if caption_parts else ""
-        cleaned = clean_text(combined)
-        full = create_full_message(cleaned)
-
-        processed.add(key)
-        await client.send_file(
-            target_channel,
-            first_media,
-            caption=full,
-            parse_mode=None
-        )
-        print(f"✅ Album fallback: sent first media")
-    except Exception as e:
-        print(f"❌ Album fallback error: {e}")
 
 async def main():
     print("\n🔌 Connecting...")
