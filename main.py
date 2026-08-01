@@ -34,7 +34,7 @@ if not os.path.exists(SESSION_FILE):
 print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-forwarded = set()  # stores IDs of processed messages/groups
+forwarded = set()
 
 def clean_text(text):
     if not text:
@@ -64,6 +64,7 @@ def create_full_message(cleaned):
         return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
 
 async def send_long(channel, message):
+    """Send long text-only messages in parts (unchanged)."""
     chunks = split_message(message)
     if not chunks:
         return
@@ -78,7 +79,7 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ==================== ALBUM HANDLER ====================
+# ========== ALBUM HANDLER ==========
 @client.on(events.Album)
 async def album_handler(event):
     try:
@@ -97,14 +98,13 @@ async def album_handler(event):
         if len(forwarded) > 1000:
             forwarded.clear()
 
-        print(f"\n📸 ALBUM DETECTED from @{chat.username} (grouped_id={grouped_id})")
+        print(f"\n📸 Album from @{chat.username}")
 
         media_list = [msg.media for msg in event.messages if msg.media]
         if not media_list:
-            print("⚠️ No media in album?")
             return
 
-        # Get the caption from the first message that has text
+        # Get caption from the first message with text
         caption = ""
         for msg in event.messages:
             if msg.raw_text:
@@ -114,7 +114,7 @@ async def album_handler(event):
         cleaned = clean_text(caption)
         full = create_full_message(cleaned)
 
-        # Send as an album with the full caption (Telegram will truncate if >1024)
+        # Send the whole album with the FULL caption attached (no extra text)
         await client.send_file(
             target_channel,
             media_list,
@@ -122,20 +122,19 @@ async def album_handler(event):
             parse_mode=None,
             album=True
         )
-        print(f"✅ Album forwarded with {len(media_list)} media items (caption length: {len(full)})")
+        print(f"✅ Album forwarded with {len(media_list)} media items")
 
     except Exception as e:
         print(f"❌ Error in album handler: {e}")
         import traceback
         traceback.print_exc()
 
-# ==================== NEW MESSAGE HANDLER ====================
+# ========== NEW MESSAGE HANDLER ==========
 @client.on(events.NewMessage)
 async def handler(event):
     try:
-        # ---- CRITICAL: Skip any message that belongs to a media group ----
+        # Skip messages that belong to an album (handled above)
         if event.message.grouped_id is not None:
-            print(f"⏩ Skipping grouped message (part of album) - will be handled by album handler")
             return
 
         chat = await event.get_chat()
@@ -149,19 +148,27 @@ async def handler(event):
         if len(forwarded) > 1000:
             forwarded.clear()
 
-        print(f"\n📨 From @{chat.username} (single message)")
+        print(f"\n📨 From @{chat.username}")
+
         original = event.raw_text or ""
         cleaned = clean_text(original)
         full = create_full_message(cleaned)
 
+        # ---- MEDIA MESSAGE: send media with full caption (NO extra text) ----
         if event.message.media:
-            print("📎 Media – sending first, then text")
-            await client.send_file(target_channel, event.message.media, caption="📎", parse_mode=None)
-            parts = await send_long(target_channel, full)
-            print(f"✅ Done – {parts} text parts sent")
+            print("📎 Media – sending with caption attached")
+            await client.send_file(
+                target_channel,
+                event.message.media,
+                caption=full,
+                parse_mode=None
+            )
+            print("✅ Media sent with caption")
         else:
+            # ---- TEXT-ONLY: split and send as messages (unchanged) ----
             parts = await send_long(target_channel, full)
             print(f"✅ Done – {parts} parts sent")
+
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
