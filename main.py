@@ -34,7 +34,9 @@ if not os.path.exists(SESSION_FILE):
 print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-forwarded = set()
+forwarded = set()          # used for deduplication
+pending_groups = {}        # grouped_id -> [messages, timer_task]
+GROUP_WAIT = 2             # seconds to wait for album completion
 
 def clean_text(text):
     if not text:
@@ -79,42 +81,32 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ========== ALBUM HANDLER ==========
-@client.on(events.Album)
-async def album_handler(event):
+async def process_group(grouped_id, messages):
+    """Forward all media from an album together with the combined caption."""
     try:
-        chat = await event.get_chat()
-        if not chat.username or chat.username not in source_channels:
-            return
+        # Remove from pending
+        if grouped_id in pending_groups:
+            del pending_groups[grouped_id]
 
-        grouped_id = event.grouped_id
-        if not grouped_id:
-            return
-
-        album_key = f"{chat.id}_group_{grouped_id}"
-        if album_key in forwarded:
-            return
-        forwarded.add(album_key)
-        if len(forwarded) > 1000:
-            forwarded.clear()
-
-        print(f"\n📸 Album from @{chat.username}")
-
-        media_list = [msg.media for msg in event.messages if msg.media]
-        if not media_list:
-            return
-
-        # Get caption from the first message with text
-        caption = ""
-        for msg in event.messages:
+        # Collect media and captions
+        media_list = []
+        caption_parts = []
+        for msg in messages:
+            if msg.media:
+                media_list.append(msg.media)
             if msg.raw_text:
-                caption = msg.raw_text
-                break
+                caption_parts.append(msg.raw_text)
 
-        cleaned = clean_text(caption)
+        if not media_list:
+            print(f"⚠️ No media in grouped_id {grouped_id}, skipping.")
+            return
+
+        # Combine captions (if multiple) – usually only one has text
+        combined_caption = "\n".join(caption_parts) if caption_parts else ""
+        cleaned = clean_text(combined_caption)
         full = create_full_message(cleaned)
 
-        # Send the whole album with the FULL caption attached (no extra text)
+        # Send as album with the full caption
         await client.send_file(
             target_channel,
             media_list,
@@ -125,38 +117,70 @@ async def album_handler(event):
         print(f"✅ Album forwarded with {len(media_list)} media items")
 
     except Exception as e:
-        print(f"❌ Error in album handler: {e}")
+        print(f"❌ Error processing album: {e}")
         import traceback
         traceback.print_exc()
 
-# ========== NEW MESSAGE HANDLER ==========
+async def handle_group_message(event, grouped_id):
+    """Add message to pending group and schedule processing."""
+    if grouped_id not in pending_groups:
+        pending_groups[grouped_id] = {
+            "messages": [],
+            "task": None
+        }
+    # Add message (avoid duplicates)
+    if event.message not in pending_groups[grouped_id]["messages"]:
+        pending_groups[grouped_id]["messages"].append(event.message)
+
+    # If no timer task, create one
+    if pending_groups[grouped_id]["task"] is None:
+        async def delayed_process():
+            await asyncio.sleep(GROUP_WAIT)
+            # Process whatever messages are collected
+            await process_group(grouped_id, pending_groups[grouped_id]["messages"])
+        task = asyncio.create_task(delayed_process())
+        pending_groups[grouped_id]["task"] = task
+
+# ========== MAIN NEW MESSAGE HANDLER ==========
 @client.on(events.NewMessage)
 async def handler(event):
     try:
-        # Skip messages that belong to an album (handled above)
-        if event.message.grouped_id is not None:
-            return
-
         chat = await event.get_chat()
         if not chat.username or chat.username not in source_channels:
             return
 
+        # Deduplication by full message ID (only for non-grouped)
+        # For grouped, we'll use a separate dedup based on grouped_id
         msg_id = f"{chat.id}_{event.id}"
         if msg_id in forwarded:
             return
+        # If it's a grouped message, we'll handle it via buffering
+        grouped_id = event.message.grouped_id
+        if grouped_id is not None:
+            # Check if we already processed this group
+            group_key = f"{chat.id}_group_{grouped_id}"
+            if group_key in forwarded:
+                return
+            # Mark that we've seen this group (to avoid duplicate processing)
+            # but we only mark after processing, so we'll mark later.
+            # For now, just buffer.
+            await handle_group_message(event, grouped_id)
+            return
+
+        # ---- Non-grouped message (single media or text) ----
         forwarded.add(msg_id)
         if len(forwarded) > 1000:
             forwarded.clear()
 
-        print(f"\n📨 From @{chat.username}")
+        print(f"\n📨 From @{chat.username} (single message)")
 
         original = event.raw_text or ""
         cleaned = clean_text(original)
         full = create_full_message(cleaned)
 
-        # ---- MEDIA MESSAGE: send media with full caption (NO extra text) ----
         if event.message.media:
-            print("📎 Media – sending with caption attached")
+            # Single media: send with full caption, no extra text
+            print("📎 Single media – sending with caption")
             await client.send_file(
                 target_channel,
                 event.message.media,
@@ -165,7 +189,7 @@ async def handler(event):
             )
             print("✅ Media sent with caption")
         else:
-            # ---- TEXT-ONLY: split and send as messages (unchanged) ----
+            # Text-only: split if needed
             parts = await send_long(target_channel, full)
             print(f"✅ Done – {parts} parts sent")
 
@@ -173,6 +197,42 @@ async def handler(event):
         print(f"❌ Error: {e}")
         import traceback
         traceback.print_exc()
+
+# Also listen to Album events as a fallback, but the above should handle all
+@client.on(events.Album)
+async def album_fallback(event):
+    # If the buffering logic didn't catch it, this will still forward as album.
+    # However, we'll skip if already processed via the main handler.
+    chat = await event.get_chat()
+    if not chat.username or chat.username not in source_channels:
+        return
+    grouped_id = event.grouped_id
+    if not grouped_id:
+        return
+    group_key = f"{chat.id}_group_{grouped_id}"
+    if group_key in forwarded:
+        return
+    # Mark as processed
+    forwarded.add(group_key)
+    # Collect media and caption
+    media_list = [msg.media for msg in event.messages if msg.media]
+    if not media_list:
+        return
+    caption = ""
+    for msg in event.messages:
+        if msg.raw_text:
+            caption = msg.raw_text
+            break
+    cleaned = clean_text(caption)
+    full = create_full_message(cleaned)
+    await client.send_file(
+        target_channel,
+        media_list,
+        caption=full,
+        parse_mode=None,
+        album=True
+    )
+    print(f"✅ Album fallback forwarded with {len(media_list)} media items")
 
 async def main():
     print("\n🔌 Connecting...")
