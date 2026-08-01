@@ -4,7 +4,7 @@ import os
 import re
 
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT (Album Fixed)")
+print("🚀 TELEGRAM FORWARD BOT (Single Photo per Album)")
 print("=" * 50)
 
 API_ID = 37303512
@@ -82,33 +82,30 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ---------- ALBUM BUFFERING ----------
+# ---------- ALBUM PROCESSING (SEND ONLY FIRST MEDIA) ----------
 async def process_album(grouped_id, messages):
-    """Send all collected media as one album with the combined caption."""
+    """Send only the first media from the album with the combined caption."""
     try:
-        # Remove from pending
         if grouped_id in pending_groups:
             del pending_groups[grouped_id]
 
-        # Collect media and captions
-        media_list = []
+        # Find the first message that has media
+        first_media_msg = None
         caption_parts = []
         for msg in messages:
-            if msg.media:
-                media_list.append(msg.media)
             if msg.raw_text:
                 caption_parts.append(msg.raw_text)
+            if msg.media and first_media_msg is None:
+                first_media_msg = msg
 
-        if not media_list:
+        if not first_media_msg:
             print(f"⚠️ No media in grouped_id {grouped_id}, skipping.")
             return
 
-        # Combine captions (usually only one has text)
         combined = "\n".join(caption_parts) if caption_parts else ""
         cleaned = clean_text(combined)
         full = create_full_message(cleaned)
 
-        # Mark as processed to avoid duplicates
         chat_id = messages[0].chat_id
         key = f"{chat_id}_group_{grouped_id}"
         if key in processed:
@@ -117,15 +114,14 @@ async def process_album(grouped_id, messages):
         if len(processed) > 1000:
             processed.clear()
 
-        # Send as album with the full caption
+        # Send only the first media with the full caption
         await client.send_file(
             target_channel,
-            media_list,
+            first_media_msg.media,
             caption=full,
-            parse_mode=None,
-            album=True
+            parse_mode=None
         )
-        print(f"✅ ALBUM sent – {len(media_list)} media items, caption length {len(full)}")
+        print(f"✅ Album → sent first media (1 of {len([m for m in messages if m.media])}) with caption length {len(full)}")
 
     except Exception as e:
         print(f"❌ Error processing album: {e}")
@@ -138,23 +134,74 @@ async def buffer_album(event):
     if grouped_id not in pending_groups:
         pending_groups[grouped_id] = {"messages": [], "task": None}
 
-    # Avoid duplicate messages
     if event.message not in pending_groups[grouped_id]["messages"]:
         pending_groups[grouped_id]["messages"].append(event.message)
 
-    # Cancel existing timer
     if pending_groups[grouped_id]["task"]:
         pending_groups[grouped_id]["task"].cancel()
 
-    # Start new timer
     async def delayed():
         try:
             await asyncio.sleep(GROUP_WAIT)
             await process_album(grouped_id, pending_groups[grouped_id]["messages"])
         except asyncio.CancelledError:
-            pass  # Timer was reset
+            pass
     task = asyncio.create_task(delayed())
     pending_groups[grouped_id]["task"] = task
+
+# ---------- ALBUM EVENT FALLBACK (also send only first) ----------
+@client.on(events.Album)
+async def album_fallback(event):
+    try:
+        chat = await event.get_chat()
+        if not chat.username or chat.username not in source_channels:
+            return
+        grouped_id = event.grouped_id
+        if not grouped_id:
+            return
+        key = f"{chat.id}_group_{grouped_id}"
+        if key in processed:
+            return
+        processed.add(key)
+        if len(processed) > 1000:
+            processed.clear()
+
+        # Cancel any pending buffer for this group
+        if grouped_id in pending_groups:
+            if pending_groups[grouped_id]["task"]:
+                pending_groups[grouped_id]["task"].cancel()
+            pending_groups.pop(grouped_id, None)
+
+        print(f"📸 Album fallback from @{chat.username}")
+
+        # Find first media and caption
+        first_media = None
+        caption_parts = []
+        for msg in event.messages:
+            if msg.raw_text:
+                caption_parts.append(msg.raw_text)
+            if msg.media and first_media is None:
+                first_media = msg.media
+
+        if not first_media:
+            return
+
+        combined = "\n".join(caption_parts) if caption_parts else ""
+        cleaned = clean_text(combined)
+        full = create_full_message(cleaned)
+
+        await client.send_file(
+            target_channel,
+            first_media,
+            caption=full,
+            parse_mode=None
+        )
+        print(f"✅ Album fallback → sent first media with caption")
+
+    except Exception as e:
+        print(f"❌ Error in album fallback: {e}")
+        import traceback
+        traceback.print_exc()
 
 # ---------- MAIN NEW MESSAGE HANDLER ----------
 @client.on(events.NewMessage)
@@ -166,7 +213,6 @@ async def handler(event):
 
         grouped_id = event.message.grouped_id
 
-        # If it's part of an album, buffer it
         if grouped_id is not None:
             print(f"📨 Album part from @{chat.username} (grouped_id={grouped_id}) – buffering")
             await buffer_album(event)
@@ -187,7 +233,6 @@ async def handler(event):
         full = create_full_message(cleaned)
 
         if event.message.media:
-            # Single media – send with full caption, NO extra text
             print("📎 Single media – sending with caption")
             await client.send_file(
                 target_channel,
@@ -197,7 +242,6 @@ async def handler(event):
             )
             print("✅ Single media sent with caption")
         else:
-            # Text‑only – split if needed
             parts = await send_long(target_channel, full)
             print(f"✅ Done – {parts} parts sent")
 
