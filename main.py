@@ -78,9 +78,7 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ------------------------------------------------------------
-# NEW: Album (media group) handler
-# ------------------------------------------------------------
+# ========== NEW: Album handler ==========
 @client.on(events.Album)
 async def album_handler(event):
     try:
@@ -90,9 +88,8 @@ async def album_handler(event):
 
         grouped_id = event.grouped_id
         if not grouped_id:
-            return   # should not happen for Album events
+            return
 
-        # Prevent duplicate processing of the same album
         album_key = f"{chat.id}_group_{grouped_id}"
         if album_key in forwarded:
             return
@@ -102,12 +99,11 @@ async def album_handler(event):
 
         print(f"\n📸 Album from @{chat.username} (grouped_id={grouped_id})")
 
-        # Collect all media from the album messages
         media_list = [msg.media for msg in event.messages if msg.media]
         if not media_list:
             return
 
-        # Find the first non‑empty caption from any message in the album
+        # Pick the first non‑empty caption from the album messages
         caption = ""
         for msg in event.messages:
             if msg.raw_text:
@@ -117,8 +113,7 @@ async def album_handler(event):
         cleaned = clean_text(caption)
         full = create_full_message(cleaned)
 
-        # Send as an album with the combined caption
-        # The `album=True` parameter ensures the media are sent as a group.
+        # Send all media as an album with the cleaned caption attached
         await client.send_file(
             target_channel,
             media_list,
@@ -133,13 +128,11 @@ async def album_handler(event):
         import traceback
         traceback.print_exc()
 
-# ------------------------------------------------------------
-# Modified NewMessage handler – skip grouped messages
-# ------------------------------------------------------------
+# ========== Modified NewMessage handler ==========
 @client.on(events.NewMessage)
 async def handler(event):
     try:
-        # Skip if this message is part of an album – the album handler will manage it
+        # Skip any message that is part of a media group – album handler takes care of it
         if event.message.grouped_id is not None:
             return
 
