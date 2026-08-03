@@ -31,6 +31,7 @@ print(f"🎯 Forwarding to: @{target_channel}")
 SESSION_FILE = "mysession.session"
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
+    print("Please create it by running locally first.")
     exit(1)
 print(f"\n✅ Session file: {SESSION_FILE}")
 
@@ -83,7 +84,7 @@ async def send_long(channel, message):
     return len(chunks)
 
 async def process_buffer(chat_id):
-    """Process the buffered messages for a chat."""
+    """Process buffered messages: send first media with combined caption."""
     data = buffers.pop(chat_id, None)
     if not data:
         return
@@ -91,7 +92,7 @@ async def process_buffer(chat_id):
     if not messages:
         return
 
-    # Combine captions and find first media
+    # Collect captions and find first media
     caption_parts = []
     first_media = None
     for msg in messages:
@@ -104,7 +105,7 @@ async def process_buffer(chat_id):
     cleaned = clean_text(combined)
     full = create_full_message(cleaned)
 
-    # Deduplicate based on chat + first message ID
+    # Deduplicate
     key = f"{chat_id}_{messages[0].id}"
     if key in processed:
         print(f"⏩ Skipping already processed buffer for chat {chat_id}")
@@ -114,7 +115,7 @@ async def process_buffer(chat_id):
         processed.clear()
 
     if first_media:
-        # Send only the first media with full caption
+        # Send only the first media with the full caption
         await client.send_file(
             target_channel,
             first_media,
@@ -122,7 +123,7 @@ async def process_buffer(chat_id):
             parse_mode=None
         )
         total_media = len([m for m in messages if m.media])
-        print(f"✅ Album: sent first media (1 of {total_media}) with caption length {len(full)}")
+        print(f"✅ Album: sent FIRST media (1 of {total_media}) with caption length {len(full)}")
     else:
         # Text-only – send as text (split if needed)
         print(f"📝 Text-only message, sending as text")
@@ -137,11 +138,11 @@ async def handler(event):
 
         chat_id = chat.id
 
-        # Initialize buffer for this chat
+        # Initialize buffer
         if chat_id not in buffers:
             buffers[chat_id] = {"msg_ids": set(), "messages": [], "task": None}
 
-        # Add message (avoid duplicates using message.id)
+        # Add message (avoid duplicates using message id)
         msg_id = event.message.id
         if msg_id not in buffers[chat_id]["msg_ids"]:
             buffers[chat_id]["msg_ids"].add(msg_id)
@@ -160,7 +161,7 @@ async def handler(event):
                 await asyncio.sleep(BUFFER_WINDOW)
                 await process_buffer(chat_id)
             except asyncio.CancelledError:
-                pass  # Timer was reset
+                pass
             except Exception as e:
                 print(f"❌ Error in delayed task: {e}")
                 import traceback
