@@ -1,14 +1,21 @@
 import asyncio
-from telethon import TelegramClient, events
+import hashlib
 import os
 import re
 
+from telethon import TelegramClient, events
+from telethon.errors import AuthKeyDuplicatedError, FloodWaitError
+
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT (Album: only first photo)")
+print("🚀 TELEGRAM FORWARD BOT (full albums + dedup)")
 print("=" * 50)
 
-API_ID = 37303512
-API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
+# ---------- config ----------
+# Prefer environment variables (set these in Railway -> Variables tab)
+# so the actual values never live in git.
+API_ID = int(os.environ.get("API_ID", "37303512"))
+API_HASH = os.environ.get("API_HASH", "dff48ddff61546b05d1d507a6c508ee8")
+SESSION_FILE = os.environ.get("SESSION_FILE", "session.session")
 
 source_channels = [
     "ayuzehabeshanews",
@@ -27,58 +34,100 @@ for ch in source_channels:
     print(f"   - @{ch}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-SESSION_FILE = "mysession.session"
 if not os.path.exists(SESSION_FILE):
     print(f"\n❌ Session file not found: {SESSION_FILE}")
-    exit(1)
+    raise SystemExit(1)
 print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-processed = set()   # for dedup
+
+# ---------- dedup state ----------
+# 1) message/group ids already handled (stops the same event firing twice)
+seen_ids = set()
+# 2) content hashes of recently forwarded posts (stops the same *story*
+#    being forwarded again when a different source channel posts it)
+seen_hashes = set()
+
+# All outgoing sends share this lock so they never fire concurrently.
+# This is what prevents the sqlite "database is locked" / burst-flood
+# crashes when several source channels post around the same time.
+send_lock = asyncio.Lock()
+
+
+def remember(cache: set, key, cap: int = 1500):
+    """Returns True if 'key' is new, False if it's a duplicate.
+    Clears the cache once it grows past cap, same simple approach
+    as before -- good enough for a rolling news feed."""
+    if key in cache:
+        return False
+    cache.add(key)
+    if len(cache) > cap:
+        cache.clear()
+    return True
+
+
+def content_fingerprint(text: str) -> str:
+    """Normalize text so near-identical reposts (different spacing/case)
+    still hash the same, then hash it."""
+    normalized = re.sub(r"\s+", " ", text or "").strip().lower()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
 
 def clean_text(text):
     if not text:
         return ""
     for ch in source_channels:
-        text = re.sub(rf'@{ch}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf'https?://t\.me/{ch}\b', '', text, flags=re.IGNORECASE)
-        text = re.sub(rf't\.me/{ch}\b', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'https?://t\.me/\S+', '', text)
-    text = re.sub(r't\.me/\S+', '', text)
-    text = re.sub(r'\n\s*\n', '\n\n', text)
+        text = re.sub(rf"@{ch}\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(rf"https?://t\.me/{ch}\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(rf"t\.me/{ch}\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"https?://t\.me/\S+", "", text)
+    text = re.sub(r"t\.me/\S+", "", text)
+    text = re.sub(r"\n\s*\n", "\n\n", text)
     return text.strip()
+
 
 def split_message(text, max_len=4000):
     if len(text) <= max_len:
         return [text]
-    chunks = []
-    for i in range(0, len(text), max_len):
-        chunks.append(text[i:i+max_len])
-    return chunks
+    return [text[i:i + max_len] for i in range(0, len(text), max_len)]
+
 
 def create_full_message(cleaned):
     intro = "የቴሌግራም ቻናላችን join በማድረግ ወቅታዊ መረጃዎችን በቀላሉ ይከታተሉ!"
     if cleaned:
         return f"{cleaned}\n\n{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
-    else:
-        return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
+    return f"{intro}\n\n{your_link}\n{your_link}\n{your_link}\nሰላም ለእናንተ!"
 
-async def send_long(channel, message):
-    chunks = split_message(message)
-    if not chunks:
-        return
-    print(f"📝 Splitting into {len(chunks)} parts")
-    first = await client.send_message(channel, chunks[0], parse_mode=None)
-    for i, chunk in enumerate(chunks[1:], start=2):
+
+async def safe_send_file(files, caption):
+    """Send (single file or list = album) with flood-wait handling."""
+    async with send_lock:
         try:
-            await client.send_message(channel, chunk, reply_to=first.id, parse_mode=None)
-            print(f"📤 Part {i}/{len(chunks)} sent")
-            await asyncio.sleep(0.3)
-        except:
-            await client.send_message(channel, chunk, parse_mode=None)
-    return len(chunks)
+            await client.send_file(target_channel, files, caption=caption, parse_mode=None)
+        except FloodWaitError as e:
+            print(f"⏳ Flood wait: sleeping {e.seconds}s")
+            await asyncio.sleep(e.seconds + 1)
+            await client.send_file(target_channel, files, caption=caption, parse_mode=None)
 
-# ========== ALBUM HANDLER – sends only the FIRST media ==========
+
+async def safe_send_text(chunks):
+    async with send_lock:
+        first = None
+        for i, chunk in enumerate(chunks, start=1):
+            try:
+                if first is None:
+                    first = await client.send_message(target_channel, chunk, parse_mode=None)
+                else:
+                    await client.send_message(target_channel, chunk, reply_to=first.id, parse_mode=None)
+                print(f"📤 Part {i}/{len(chunks)} sent")
+                await asyncio.sleep(0.3)
+            except FloodWaitError as e:
+                print(f"⏳ Flood wait: sleeping {e.seconds}s")
+                await asyncio.sleep(e.seconds + 1)
+                await client.send_message(target_channel, chunk, parse_mode=None)
+
+
+# ========== ALBUM HANDLER — forwards the FULL album ==========
 @client.on(events.Album)
 async def album_handler(event):
     try:
@@ -90,25 +139,21 @@ async def album_handler(event):
         if not grouped_id:
             return
 
-        key = f"{chat.id}_group_{grouped_id}"
-        if key in processed:
+        id_key = f"{chat.id}_group_{grouped_id}"
+        if not remember(seen_ids, id_key):
             return
-        processed.add(key)
-        if len(processed) > 1000:
-            processed.clear()
 
         print(f"\n📸 Album detected from @{chat.username}")
 
-        # Find first media and collect caption from all messages
-        first_media = None
+        media_items = []
         caption_parts = []
         for msg in event.messages:
             if msg.raw_text:
                 caption_parts.append(msg.raw_text)
-            if msg.media and first_media is None:
-                first_media = msg.media
+            if msg.media:
+                media_items.append(msg.media)
 
-        if not first_media:
+        if not media_items:
             print("⚠️ No media in album, skipping.")
             return
 
@@ -116,26 +161,28 @@ async def album_handler(event):
         cleaned = clean_text(combined)
         full = create_full_message(cleaned)
 
-        # Send ONLY the first media with the full caption
-        await client.send_file(
-            target_channel,
-            first_media,
-            caption=full,
-            parse_mode=None
-        )
-        total = len([m for m in event.messages if m.media])
-        print(f"✅ Album: sent FIRST media (1 of {total}) with caption length {len(full)}")
+        fingerprint = content_fingerprint(cleaned)
+        if fingerprint and not remember(seen_hashes, fingerprint):
+            print("🔁 Duplicate story (already posted by another source), skipping.")
+            return
+
+        # Telethon: pass a list of captions matching the file list so the
+        # caption only appears once, under the first item of the album.
+        captions = [full] + [""] * (len(media_items) - 1)
+        await safe_send_file(media_items, captions)
+        print(f"✅ Album: sent all {len(media_items)} media items with caption")
 
     except Exception as e:
         print(f"❌ Album handler error: {e}")
         import traceback
         traceback.print_exc()
 
+
 # ========== SINGLE MESSAGE HANDLER ==========
 @client.on(events.NewMessage)
 async def handler(event):
     try:
-        # Skip messages that belong to an album – they are handled above
+        # Albums are handled separately above.
         if event.message.grouped_id is not None:
             return
 
@@ -143,12 +190,9 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
 
-        msg_id = f"{chat.id}_{event.id}"
-        if msg_id in processed:
+        id_key = f"{chat.id}_{event.id}"
+        if not remember(seen_ids, id_key):
             return
-        processed.add(msg_id)
-        if len(processed) > 1000:
-            processed.clear()
 
         print(f"\n📨 From @{chat.username} (single message)")
 
@@ -156,33 +200,55 @@ async def handler(event):
         cleaned = clean_text(original)
         full = create_full_message(cleaned)
 
+        fingerprint = content_fingerprint(cleaned)
+        if fingerprint and not remember(seen_hashes, fingerprint):
+            print("🔁 Duplicate story (already posted by another source), skipping.")
+            return
+
         if event.message.media:
-            # Single media – send with caption (no separate text)
-            print("📎 Single media – sending with caption")
-            await client.send_file(
-                target_channel,
-                event.message.media,
-                caption=full,
-                parse_mode=None
-            )
+            print("📎 Single media — sending with caption")
+            await safe_send_file(event.message.media, full)
             print("✅ Single media sent with caption")
         else:
-            # Text‑only – split if needed
-            parts = await send_long(target_channel, full)
-            print(f"✅ Done – {parts} parts sent")
+            chunks = split_message(full)
+            print(f"📝 Splitting into {len(chunks)} parts")
+            await safe_send_text(chunks)
+            print(f"✅ Done — {len(chunks)} parts sent")
 
     except Exception as e:
         print(f"❌ Error in handler: {e}")
         import traceback
         traceback.print_exc()
 
+
 async def main():
-    print("\n🔌 Connecting...")
-    await client.start()
-    me = await client.get_me()
-    print(f"✅ Connected as @{me.username}")
-    print("🤖 Bot running\n")
-    await client.run_until_disconnected()
+    backoff = 10
+    while True:
+        try:
+            print("\n🔌 Connecting...")
+            await client.start()
+            me = await client.get_me()
+            print(f"✅ Connected as @{me.username}")
+            print("🤖 Bot running\n")
+            backoff = 10  # reset backoff after a clean connect
+            await client.run_until_disconnected()
+        except AuthKeyDuplicatedError:
+            # The session was used from two places at once and Telegram
+            # killed it. Retrying will just fail again with the SAME
+            # error, so we stop instead of crash-looping forever.
+            print(
+                "\n❌ AuthKeyDuplicatedError: this session was used from "
+                "another IP/device and is now invalid.\n"
+                "   -> Generate a NEW session file, upload it via Railway "
+                "variables/volume (not git), and redeploy.\n"
+                "   Bot is stopping to avoid a restart-crash loop."
+            )
+            return
+        except Exception as e:
+            print(f"⚠️ Main loop error: {e!r}. Retrying in {backoff}s...")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
