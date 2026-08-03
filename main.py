@@ -10,9 +10,6 @@ print("=" * 50)
 print("🚀 TELEGRAM FORWARD BOT (full albums + dedup)")
 print("=" * 50)
 
-# ---------- config ----------
-# Prefer environment variables (set these in Railway -> Variables tab)
-# so the actual values never live in git.
 API_ID = int(os.environ.get("API_ID", "37303512"))
 API_HASH = os.environ.get("API_HASH", "dff48ddff61546b05d1d507a6c508ee8")
 SESSION_FILE = os.environ.get("SESSION_FILE", "session.session")
@@ -41,23 +38,12 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-# ---------- dedup state ----------
-# 1) message/group ids already handled (stops the same event firing twice)
 seen_ids = set()
-# 2) content hashes of recently forwarded posts (stops the same *story*
-#    being forwarded again when a different source channel posts it)
 seen_hashes = set()
-
-# All outgoing sends share this lock so they never fire concurrently.
-# This is what prevents the sqlite "database is locked" / burst-flood
-# crashes when several source channels post around the same time.
 send_lock = asyncio.Lock()
 
 
 def remember(cache: set, key, cap: int = 1500):
-    """Returns True if 'key' is new, False if it's a duplicate.
-    Clears the cache once it grows past cap, same simple approach
-    as before -- good enough for a rolling news feed."""
     if key in cache:
         return False
     cache.add(key)
@@ -67,8 +53,6 @@ def remember(cache: set, key, cap: int = 1500):
 
 
 def content_fingerprint(text: str) -> str:
-    """Normalize text so near-identical reposts (different spacing/case)
-    still hash the same, then hash it."""
     normalized = re.sub(r"\s+", " ", text or "").strip().lower()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
@@ -100,7 +84,6 @@ def create_full_message(cleaned):
 
 
 async def safe_send_file(files, caption):
-    """Send (single file or list = album) with flood-wait handling."""
     async with send_lock:
         try:
             await client.send_file(target_channel, files, caption=caption, parse_mode=None)
@@ -127,7 +110,6 @@ async def safe_send_text(chunks):
                 await client.send_message(target_channel, chunk, parse_mode=None)
 
 
-# ========== ALBUM HANDLER — forwards the FULL album ==========
 @client.on(events.Album)
 async def album_handler(event):
     try:
@@ -166,8 +148,6 @@ async def album_handler(event):
             print("🔁 Duplicate story (already posted by another source), skipping.")
             return
 
-        # Telethon: pass a list of captions matching the file list so the
-        # caption only appears once, under the first item of the album.
         captions = [full] + [""] * (len(media_items) - 1)
         await safe_send_file(media_items, captions)
         print(f"✅ Album: sent all {len(media_items)} media items with caption")
@@ -178,11 +158,9 @@ async def album_handler(event):
         traceback.print_exc()
 
 
-# ========== SINGLE MESSAGE HANDLER ==========
 @client.on(events.NewMessage)
 async def handler(event):
     try:
-        # Albums are handled separately above.
         if event.message.grouped_id is not None:
             return
 
@@ -230,12 +208,9 @@ async def main():
             me = await client.get_me()
             print(f"✅ Connected as @{me.username}")
             print("🤖 Bot running\n")
-            backoff = 10  # reset backoff after a clean connect
+            backoff = 10
             await client.run_until_disconnected()
         except AuthKeyDuplicatedError:
-            # The session was used from two places at once and Telegram
-            # killed it. Retrying will just fail again with the SAME
-            # error, so we stop instead of crash-looping forever.
             print(
                 "\n❌ AuthKeyDuplicatedError: this session was used from "
                 "another IP/device and is now invalid.\n"
