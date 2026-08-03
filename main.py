@@ -36,9 +36,9 @@ print(f"\n✅ Session file: {SESSION_FILE}")
 
 client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
 
-processed = set()          # for single messages and album groups
-buffer = {}                # chat_id -> {"messages": [], "last_time": 0, "task": None}
-BUFFER_WINDOW = 6          # seconds – any messages within this window are grouped
+processed = set()          # for deduplication (single messages and groups)
+buffers = {}               # chat_id -> {"msg_ids": set(), "messages": [], "task": None}
+BUFFER_WINDOW = 6          # seconds – messages within this window are grouped
 
 def clean_text(text):
     if not text:
@@ -82,52 +82,52 @@ async def send_long(channel, message):
             await client.send_message(channel, chunk, parse_mode=None)
     return len(chunks)
 
-# ---------- BUFFER PROCESSING (send only first media) ----------
 async def process_buffer(chat_id):
-    """Send the first media from the buffered messages, ignore the rest."""
-    data = buffer.pop(chat_id, None)
+    """Process the buffered messages for a chat."""
+    data = buffers.pop(chat_id, None)
     if not data:
         return
-    messages = data["messages"]
+    messages = data.get("messages", [])
     if not messages:
         return
 
-    # Find the first message with media and collect all captions
-    first_media_msg = None
+    # Combine captions and find first media
     caption_parts = []
+    first_media = None
     for msg in messages:
         if msg.raw_text:
             caption_parts.append(msg.raw_text)
-        if msg.media and first_media_msg is None:
-            first_media_msg = msg
-
-    if not first_media_msg:
-        print(f"⚠️ No media in buffer for chat {chat_id}, skipping.")
-        return
-
-    # Mark as processed (prevent duplicate)
-    key = f"{chat_id}_buffer"
-    if key in processed:
-        return
-    processed.add(key)
-    if len(processed) > 1000:
-        processed.clear()
+        if msg.media and first_media is None:
+            first_media = msg.media
 
     combined = "\n".join(caption_parts) if caption_parts else ""
     cleaned = clean_text(combined)
     full = create_full_message(cleaned)
 
-    # Send only the first media
-    await client.send_file(
-        target_channel,
-        first_media_msg.media,
-        caption=full,
-        parse_mode=None
-    )
-    total_media = len([m for m in messages if m.media])
-    print(f"✅ Buffer: sent first media (1 of {total_media}) with caption length {len(full)}")
+    # Deduplicate based on chat + first message ID
+    key = f"{chat_id}_{messages[0].id}"
+    if key in processed:
+        print(f"⏩ Skipping already processed buffer for chat {chat_id}")
+        return
+    processed.add(key)
+    if len(processed) > 1000:
+        processed.clear()
 
-# ---------- MAIN NEW MESSAGE HANDLER ----------
+    if first_media:
+        # Send only the first media with full caption
+        await client.send_file(
+            target_channel,
+            first_media,
+            caption=full,
+            parse_mode=None
+        )
+        total_media = len([m for m in messages if m.media])
+        print(f"✅ Album: sent first media (1 of {total_media}) with caption length {len(full)}")
+    else:
+        # Text-only – send as text (split if needed)
+        print(f"📝 Text-only message, sending as text")
+        await send_long(target_channel, full)
+
 @client.on(events.NewMessage)
 async def handler(event):
     try:
@@ -135,36 +135,41 @@ async def handler(event):
         if not chat.username or chat.username not in source_channels:
             return
 
-        # If this is a single (non‑grouped) message and no other messages are buffered,
-        # we might process it immediately. But we'll use a buffer for all messages
-        # to catch albums that might not have grouped_id.
-
         chat_id = chat.id
 
-        # Add message to buffer
-        if chat_id not in buffer:
-            buffer[chat_id] = {"messages": [], "last_time": 0, "task": None}
+        # Initialize buffer for this chat
+        if chat_id not in buffers:
+            buffers[chat_id] = {"msg_ids": set(), "messages": [], "task": None}
 
-        # Avoid duplicates
-        if event.message not in buffer[chat_id]["messages"]:
-            buffer[chat_id]["messages"].append(event.message)
-        buffer[chat_id]["last_time"] = time.time()
+        # Add message (avoid duplicates using message.id)
+        msg_id = event.message.id
+        if msg_id not in buffers[chat_id]["msg_ids"]:
+            buffers[chat_id]["msg_ids"].add(msg_id)
+            buffers[chat_id]["messages"].append(event.message)
 
         # Cancel existing timer
-        if buffer[chat_id]["task"]:
-            buffer[chat_id]["task"].cancel()
+        if buffers[chat_id]["task"]:
+            try:
+                buffers[chat_id]["task"].cancel()
+            except:
+                pass
 
-        # Start a new timer that will fire after the window
+        # Start new timer
         async def delayed():
-            await asyncio.sleep(BUFFER_WINDOW)
-            # Only process if no new messages have arrived in the meantime
-            # The timer is only used to trigger, we check if enough time passed
-            await process_buffer(chat_id)
+            try:
+                await asyncio.sleep(BUFFER_WINDOW)
+                await process_buffer(chat_id)
+            except asyncio.CancelledError:
+                pass  # Timer was reset
+            except Exception as e:
+                print(f"❌ Error in delayed task: {e}")
+                import traceback
+                traceback.print_exc()
 
         task = asyncio.create_task(delayed())
-        buffer[chat_id]["task"] = task
+        buffers[chat_id]["task"] = task
 
-        print(f"📨 Buffered message from @{chat.username} (now {len(buffer[chat_id]['messages'])} messages in buffer)")
+        print(f"📨 Buffered message from @{chat.username} (buffer size: {len(buffers[chat_id]['messages'])})")
 
     except Exception as e:
         print(f"❌ Error in handler: {e}")
