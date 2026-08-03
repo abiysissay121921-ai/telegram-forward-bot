@@ -12,7 +12,7 @@ print("=" * 50)
 
 API_ID = int(os.environ.get("API_ID", "37303512"))
 API_HASH = os.environ.get("API_HASH", "dff48ddff61546b05d1d507a6c508ee8")
-SESSION_FILE = os.environ.get("SESSION_FILE", "session.session")
+SESSION_FILE = os.environ.get("SESSION_FILE", "ebc_bot_session.session")
 
 source_channels = [
     "ayuzehabeshanews",
