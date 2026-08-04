@@ -1,3 +1,2 @@
-git rm session.session
-git commit -m "remove exposed session file"
-git push
+*.session
+*.session-journal
