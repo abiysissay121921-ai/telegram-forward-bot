@@ -28,7 +28,7 @@ for ch in source_channels:
 print(f"🎯 Forwarding to: @{target_channel}")
 
 # =============================================
-# ✅ IMPORTANT: Session file name is now set to "ebc_bot_session.session"
+# ✅ Session file name must match EXACTLY
 # =============================================
 SESSION_FILE = "ebc_bot_session.session"
 
