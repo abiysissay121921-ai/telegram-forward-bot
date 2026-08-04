@@ -1,14 +1,21 @@
 import asyncio
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 import os
 import re
 
 print("=" * 50)
-print("🚀 TELEGRAM FORWARD BOT (Album: only first photo)")
+print("🚀 TELEGRAM FORWARD BOT (StringSession)")
 print("=" * 50)
 
-API_ID = 37303512
-API_HASH = "dff48ddff61546b05d1d507a6c508ee8"
+API_ID = int(os.getenv("API_ID", 37303512))
+API_HASH = os.getenv("API_HASH", "dff48ddff61546b05d1d507a6c508ee8")
+STRING_SESSION = os.getenv("STRING_SESSION")
+
+if not STRING_SESSION:
+    print("❌ STRING_SESSION environment variable not set!")
+    print("Please add it in Railway Variables")
+    exit(1)
 
 source_channels = [
     "ayuzehabeshanews",
@@ -27,18 +34,8 @@ for ch in source_channels:
     print(f"   - @{ch}")
 print(f"🎯 Forwarding to: @{target_channel}")
 
-# =============================================
-# ✅ Session file name must match EXACTLY
-# =============================================
-SESSION_FILE = "ebc_bot_session.session"
-
-if not os.path.exists(SESSION_FILE):
-    print(f"\n❌ Session file not found: {SESSION_FILE}")
-    exit(1)
-print(f"\n✅ Session file: {SESSION_FILE}")
-
-client = TelegramClient(SESSION_FILE, API_ID, API_HASH)
-processed = set()   # for dedup
+client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
+processed = set()
 
 def clean_text(text):
     if not text:
